@@ -426,12 +426,69 @@ async function start(m) {
   gsap.to('#intro', { opacity: 0, duration: 1.2, ease: 'power2.inOut', onComplete: () => ($('intro').hidden = true) });
   $('hud').hidden = false; setGuide();
   gsap.from('#guide, #tools', { y: 12, opacity: 0, duration: 1, delay: 0.6 });
-  status.textContent = hands.mode === 'camera' ? 'Raise your hands' : '';
-  setTimeout(() => say('Aether Prime', 'One galaxy among hundreds — scroll out, or hold both palms still'), 2500);
+  status.textContent = '';
+  updateInputButton(); coachStart();
 }
+
+// ---------------------------------------------------------------- input switch (always visible) + camera errors
+function updateInputButton() { $('btnInput').textContent = hands.mode === 'camera' ? '✋ Hands' : '🖱 Mouse'; $('btnInput').title = hands.mode === 'camera' ? 'Using your hands — click to use the mouse' : 'Using the mouse — click to use your hands'; }
+function banner(text) { const b = $('banner'); b.textContent = text; b.hidden = !text; }
+async function switchInput() {
+  if (hands.mode === 'camera') { hands.initMouse(glc); gsap.to(U.feed, { value: 0, duration: 0.8 }); }
+  else {
+    try { if (!hands.worker) await hands.initCamera(); else hands.mode = 'camera'; updateCover(); banner(''); gsap.to(U.feed, { value: 1, duration: 0.8 }); }
+    catch (e) { console.warn(e); hands.initMouse(glc); banner('Camera unavailable (' + (e.name || 'error') + '). Allow camera access in the address bar, then click 🖱 Mouse to try again.'); }
+  }
+  updateInputButton(); setGuide(); coachStart();
+}
+
+// ---------------------------------------------------------------- guided tutorial: confirms each gesture as you do it
+const COACH = {
+  camera: [
+    { text: 'Raise one hand so the camera can see it', done: () => hands.hands.some((h) => h.active > 0.8), ok: 'Got your hand' },
+    { text: 'Sweep your hand through the stars', done: () => hands.hands.some((h) => h.active > 0.8 && h.vel.length() > 1.5), hold: 0.15, ok: 'You moved the stars' },
+    { text: 'Pinch your thumb and index finger together', done: () => hands.hands.some((h) => h.active > 0.8 && h.lat.pinch.on), hold: 0.3, ok: 'Gathering stars' },
+    { text: 'Make a fist… then open it fast', done: () => hands.hands.some((h) => h.burst > 0.8), ok: 'Boom' },
+    { text: 'Press ✦ Create (or C) to make stars and planets', done: () => createMode, ok: 'Create mode on' },
+  ],
+  mouse: [
+    { text: 'Move your mouse through the stars', done: () => hands.hands[0].vel.length() > 1.2, hold: 0.12, ok: 'You moved the stars' },
+    { text: 'Click and hold to gather stars', done: () => hands.hands[0].fist > 0.8, hold: 0.4, ok: 'Gathering' },
+    { text: 'Let go to explode them', done: () => hands.hands[0].burst > 0.8, ok: 'Boom' },
+    { text: 'Press ✦ Create (or C) to make planets and stars', done: () => createMode, ok: 'Create mode on' },
+    { text: 'Scroll out (or press Esc) to see the whole universe', done: () => mode === 'universe', ok: 'Welcome to the universe' },
+  ],
+};
+const coach = { steps: null, done: [], t: [], flash: 0, flashText: '' };
+function coachStart() { coach.steps = COACH[hands.mode === 'camera' ? 'camera' : 'mouse']; coach.done = coach.steps.map(() => false); coach.t = coach.steps.map(() => 0); coach.flash = 0; $('coach').hidden = false; coachRender(); }
+const coachCur = () => coach.done.indexOf(false);
+function coachRender() {
+  const el = $('coach'); const st = coach.steps; const i = coachCur();
+  if (!st || (i < 0 && coach.flash <= 0)) { el.hidden = true; return; }
+  const showOk = coach.flash > 0;
+  el.querySelector('.ctext').textContent = showOk ? '✓ ' + coach.flashText : st[i].text;
+  el.classList.toggle('ok', showOk);
+  el.querySelector('.cdots').innerHTML = st.map((_, k) => `<i class="${coach.done[k] ? 'd' : k === i ? 'c' : ''}"></i>`).join('');
+  el.querySelector('.cstep').textContent = i < 0 ? 'All done' : `Step ${i + 1} of ${st.length}`;
+}
+// every step is checked every frame, so gestures count in any order
+function coachTick(dt) {
+  if (!coach.steps || $('coach').hidden) return;
+  let changed = false;
+  coach.steps.forEach((s, k) => {
+    if (coach.done[k]) return;
+    const now = s.done(); coach.t[k] = now ? coach.t[k] + dt : 0;
+    if (now && coach.t[k] >= (s.hold || 0)) { coach.done[k] = true; coach.flash = 1.1; coach.flashText = s.ok; changed = true; }
+  });
+  if (coach.flash > 0) { coach.flash -= dt; if (coach.flash <= 0) { changed = true; if (coachCur() < 0) say('You\'re all set', hands.mode === 'camera' ? 'Hold both palms still to zoom out to the universe' : 'Click a galaxy to fly into it'); } }
+  if (changed) coachRender();
+}
+
 $('btnCam').onclick = () => start('camera');
 $('btnMouse').onclick = () => start('mouse');
 $('btnRec').onclick = toggleRecord;
+$('btnInput').onclick = switchInput;
+$('coachSkip').onclick = () => { $('coach').hidden = true; };
 $('btnFeed').onclick = () => gsap.to(U.feed, { value: U.feed.value > 0.5 ? 0 : 1, duration: 0.8 });
 $('btnUniverse').onclick = () => exitGalaxy();
 $('btnCreate').onclick = () => setCreate(!createMode);
@@ -457,6 +514,7 @@ renderer.setAnimationLoop((now) => {
     for (let j = 0; j < 21; j++) u.joints.array[i * 21 + j].copy(live && h.active > 0.3 && hands.mode === 'camera' ? h.world[j] : FAR);
   });
   handCreate(dt, now);
+  coachTick(dt);
   if (live) bodies.step(dt);
   bodyEvents();
   nova.explode *= Math.exp(-dt * 2.5); nova.chroma *= Math.exp(-dt * 2.0); if (nova.explode < 0.01) nova.explode = 0;

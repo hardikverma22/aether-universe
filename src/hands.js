@@ -56,6 +56,7 @@ export class Hands {
 
   initMouse(el) {
     this.mode = 'mouse';
+    if (this._mouseBound) return; this._mouseBound = true;
     const h = this.hands[0]; const m = (this.mouse = { x: 0.5, y: 0.5, down: false, downT: 0, inside: false });
     const at = (e) => { m.x = e.clientX / innerWidth; m.y = e.clientY / innerHeight; m.inside = true; };
     el.addEventListener('pointermove', at);

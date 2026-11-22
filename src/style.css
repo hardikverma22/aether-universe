@@ -38,3 +38,15 @@ button:focus-visible { outline: 2px solid #9fb4ff; outline-offset: 3px; }
 #tools2 { position: absolute; top: max(60px, calc(env(safe-area-inset-top) + 50px)); right: 14px; display: flex; flex-direction: column; gap: 6px; pointer-events: auto; align-items: flex-end; }
 #tools2 button { padding: .45em .95em; font-size: 12px; min-width: 116px; text-align: left; }
 #tools2 button.on, #btnCreate.on { background: var(--ink); color: #07071a; border-color: var(--ink); }
+
+#coach { position: absolute; left: 50%; bottom: 74px; transform: translateX(-50%); width: min(520px, 92vw); padding: 16px 20px 14px; border-radius: 18px; text-align: center; pointer-events: auto;
+  background: rgba(10,10,24,.72); border: 1px solid rgba(238,240,255,.16); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); transition: border-color .3s, background .3s; }
+#coach.ok { border-color: rgba(140,255,190,.55); background: rgba(10,30,24,.72); }
+#coach .cstep { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); }
+#coach .ctext { font-family: var(--serif); font-size: clamp(19px, 2.2vw, 24px); margin: 6px 0 10px; color: var(--ink); }
+#coach.ok .ctext { color: #b8ffd6; }
+#coach .cdots { display: flex; gap: 6px; justify-content: center; }
+#coach .cdots i { width: 7px; height: 7px; border-radius: 50%; background: rgba(238,240,255,.18); }
+#coach .cdots i.d { background: #8dffc0; } #coach .cdots i.c { background: var(--ink); }
+#coachSkip { position: absolute; top: 10px; right: 10px; padding: .3em .8em; font-size: 11px; }
+#banner { position: absolute; left: 50%; top: 64px; transform: translateX(-50%); max-width: 92vw; padding: 10px 16px; border-radius: 12px; background: rgba(120,20,20,.85); border: 1px solid rgba(255,140,140,.5); font-size: 13px; pointer-events: auto; }
