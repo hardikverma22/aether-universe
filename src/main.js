@@ -5,6 +5,8 @@ import {
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 import gsap from 'gsap';
 import { makeGalaxy } from './sim.js';
+import { Bodies } from './bodies.js';
+import { makeNebula } from './nebula.js';
 import { Hands, CONNECTIONS } from './hands.js';
 import { makeUniverse, PALETTES, SHAPES } from './universe.js';
 import { Rig } from './rig.js';
@@ -28,7 +30,7 @@ const rig = new Rig(camera);
 // background: deep-space gradient blended with a stylized mirrored camera feed
 const video = $('video');
 const videoTex = new THREE.VideoTexture(video); videoTex.colorSpace = THREE.SRGBColorSpace;
-const U = { feed: uniform(0), cover: uniform(new THREE.Vector2(1, 1)), bangUV: uniform(new THREE.Vector2(0.5, 0.5)), lens: uniform(0), chroma: uniform(0), flash: uniform(0) };
+const U = { feed: uniform(0), cover: uniform(new THREE.Vector2(1, 1)), bangUV: uniform(new THREE.Vector2(0.5, 0.5)), lens: uniform(0), chroma: uniform(0), flash: uniform(0), shadowUV: uniform(new THREE.Vector2(0.5, 0.5)), shadowR: uniform(0), shadow: uniform(0) };
 scene.backgroundNode = Fn(() => {
   const s = screenUV;
   const space = mix(vec3(0.03, 0.03, 0.075), vec3(0.004, 0.004, 0.012), smoothstep(0.0, 0.75, length(s.sub(vec2(0.5, 0.45)))));
@@ -44,8 +46,11 @@ scene.backgroundNode = Fn(() => {
 const universe = makeUniverse({ seed: +(q.get('seed') || 7) });
 scene.add(universe.group);
 const small = matchMedia('(max-width: 700px)').matches;
-const galaxy = makeGalaxy({ count: small ? 90000 : 240000 });
+const bodies = new Bodies(scene);
+const galaxy = makeGalaxy({ count: small ? 90000 : 240000, bodies: bodies.gpu });
 scene.add(galaxy.sprite);
+const nebula = makeNebula({ count: small ? 16000 : 40000 });
+scene.add(nebula.sprite);
 
 // post: bloom, then gravitational lensing + chromatic aberration + flash
 const pipeline = new THREE.RenderPipeline(renderer);
@@ -58,8 +63,11 @@ pipeline.outputNode = Fn(() => {
   const uv2 = uvn.sub(dir.mul(warp));
   const ca = dir.mul(U.chroma.mul(0.02).mul(r.add(0.2)));
   const col = vec3(lit.sample(uv2.add(ca)).r, lit.sample(uv2).g, lit.sample(uv2.sub(ca)).b);
-  const hole = smoothstep(0.0, 0.05, r).mul(U.lens).oneMinus().mul(U.lens).oneMinus();
-  return vec4(col.mul(max(hole, 0.0)).add(U.flash.mul(vec3(1.0, 0.92, 0.82))), 1);
+  const hole = float(1).sub(U.lens.mul(smoothstep(0.05, 0.0, r)));   // darken only the centre, never the whole frame
+  // black-hole shadow: an inky disc the size of the capture radius, drawn over the glow
+  const rs = length(uvn.sub(U.shadowUV).mul(vec2(asp, 1)));
+  const shade = float(1).sub(U.shadow.mul(smoothstep(U.shadowR, U.shadowR.mul(0.55), rs)));
+  return vec4(col.mul(max(hole, 0.0)).mul(shade).add(U.flash.mul(vec3(1.0, 0.92, 0.82))), 1);
 })();
 
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); sizeOverlay(); updateCover(); });
@@ -73,6 +81,7 @@ function loadGalaxy(g) {
   u.shape.value = g.shape; u.arms.value = g.arms; u.twist.value = g.twist; u.size.value = g.size;
   PALETTES[g.palette].forEach((hex, i) => [u.c0, u.c1, u.c2][i].value.set(hex));
   renderer.compute(galaxy.init); // stars start scattered and settle into the new shape
+  bodies.clear(); bodies.setCenter(g.pos);
 }
 
 let mode = 'galaxy', current = universe.list[0];
@@ -121,6 +130,16 @@ function drawOverlay() {
     grd.addColorStop(0, `rgba(255,214,170,${(0.08 + g * 0.32 + h.burst * 0.5) * h.active})`); grd.addColorStop(1, 'rgba(255,180,120,0)');
     ctx.shadowBlur = 0; ctx.fillStyle = grd; ctx.beginPath(); ctx.arc(s.x, s.y, r, 0, 7); ctx.fill();
   }
+  // create previews: a growing protostar / black-hole charge
+  for (const p of protostars) {
+    const grd = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r);
+    if (p.hole) { grd.addColorStop(0, 'rgba(0,0,0,0.9)'); grd.addColorStop(0.6, 'rgba(160,90,255,0.35)'); grd.addColorStop(1, 'rgba(160,90,255,0)'); }
+    else { grd.addColorStop(0, 'rgba(255,240,210,0.95)'); grd.addColorStop(0.35, 'rgba(255,190,120,0.45)'); grd.addColorStop(1, 'rgba(255,160,90,0)'); }
+    ctx.globalCompositeOperation = p.hole ? 'source-over' : 'lighter'; ctx.fillStyle = grd; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 7); ctx.fill();
+  }
+  if (mc.down && tool === 'star' && createMode) { const held = (performance.now() - mc.t0) / 1000; const r = 8 + Math.min(held, 3) * 14;
+    const grd = ctx.createRadialGradient(mc.x, mc.y, 0, mc.x, mc.y, r); grd.addColorStop(0, 'rgba(255,240,210,0.95)'); grd.addColorStop(1, 'rgba(255,160,90,0)');
+    ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = grd; ctx.beginPath(); ctx.arc(mc.x, mc.y, r, 0, 7); ctx.fill(); }
   // universe: highlight the galaxy under the pointer / fingertip, with a dwell ring
   ctx.globalCompositeOperation = 'source-over'; ctx.shadowBlur = 0;
   const label = $('label');
@@ -163,6 +182,7 @@ async function enterGalaxy(g) {
 }
 async function exitGalaxy() {
   if (mode !== 'galaxy' || rig.busy) return;
+  if (createMode) setCreate(false);
   mode = 'flying'; setGuide();
   const g = current; const back = camera.position.clone().sub(g.pos).normalize();
   gsap.to(galaxy.u.fade, { value: 0, duration: 1.2 });
@@ -173,7 +193,7 @@ async function exitGalaxy() {
 // ---------------------------------------------------------------- Big Bang (two hands together, then pull apart)
 const bang = { state: 'idle', charge: 0, startD: 0, t: 0, explode: 0 };
 function updateBang(dt) {
-  const [a, b] = hands.hands; const both = mode === 'galaxy' && a.active > 0.8 && b.active > 0.8;
+  const [a, b] = hands.hands; const both = mode === 'galaxy' && !createMode && a.active > 0.8 && b.active > 0.8;
   const d = both ? a.pos.distanceTo(b.pos) : 99;
   const mid = both ? a.pos.clone().add(b.pos).multiplyScalar(0.5) : galaxy.u.bangPos.value;
   if (bang.state === 'idle' && both && d < 1.0) { bang.state = 'charging'; bang.startD = d; bang.charge = 0; }
@@ -184,11 +204,22 @@ function updateBang(dt) {
   }
   if (bang.state === 'exploding') { bang.t += dt; bang.explode *= Math.exp(-dt * 2.2); if (bang.t > 2.2) bang.state = 'idle'; }
   galaxy.u.implode.value += ((bang.state === 'charging' ? bang.charge : 0) - galaxy.u.implode.value) * 0.2;
-  galaxy.u.explode.value = bang.state === 'exploding' ? bang.explode : 0;
+  galaxy.u.explode.value = bang.state === 'exploding' ? bang.explode : nova.explode;
   const s = galaxy.u.bangPos.value.clone().project(camera);
   U.bangUV.value.set(s.x * 0.5 + 0.5, 0.5 - s.y * 0.5);
   U.lens.value = galaxy.u.implode.value * 0.9;
-  U.chroma.value = galaxy.u.explode.value + Math.max(...hands.hands.map((h) => h.burst)) * 0.4;
+  // black holes you made bend light too (the heaviest one, when no Big Bang is happening)
+  if (galaxy.u.implode.value < 0.05 && mode === 'galaxy') {
+    const bh = bodies.list.filter((x) => x.type === 'hole').sort((x, y) => y.mass - x.mass)[0];
+    if (bh) { const sp = bh.pos.clone().project(camera); U.bangUV.value.set(sp.x * 0.5 + 0.5, 0.5 - sp.y * 0.5); U.lens.value = Math.min(0.22, 0.06 * Math.sqrt(bh.mass)); }
+  }
+  const bh2 = mode === 'galaxy' ? bodies.list.filter((x) => x.type === 'hole').sort((x, y) => y.mass - x.mass)[0] : null;
+  if (bh2) {
+    const c = bh2.pos.clone().project(camera); const right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
+    const e = bh2.pos.clone().addScaledVector(right, 0.24 * Math.cbrt(bh2.mass)).project(camera);
+    U.shadowUV.value.set(c.x * 0.5 + 0.5, 0.5 - c.y * 0.5); U.shadowR.value = Math.abs(e.x - c.x) * 0.5 * (innerWidth / innerHeight); U.shadow.value += (0.92 - U.shadow.value) * 0.1;
+  } else U.shadow.value *= 0.9;
+  U.chroma.value = galaxy.u.explode.value + Math.max(...hands.hands.map((h) => h.burst)) * 0.4 + nova.chroma;
   U.flash.value = bang.state === 'exploding' ? Math.max(0, 1 - bang.t * 3) ** 2 * 0.9 : 0;
 }
 
@@ -219,16 +250,101 @@ function handNavigation(dt) {
   }
 }
 
+
+// ---------------------------------------------------------------- CREATE mode: stars, planets, black holes, nebulae, supernovae
+let createMode = false, tool = 'star';
+const nova = { explode: 0, chroma: 0 };
+const camFwd = () => camera.getWorldDirection(new THREE.Vector3());
+const hueColor = (t) => new THREE.Color().setHSL((t * 0.05) % 1, 0.75, 0.6);
+function makePlanet(pos, vel) { return bodies.add('planet', pos, vel ?? bodies.orbitVelocity(pos, camFwd()), 0.01); }
+function makeStar(pos, vel, mass) { const v = vel ?? bodies.orbitVelocity(pos, camFwd()).multiplyScalar(0.8); nebula.emitBurst(pos, new THREE.Color(1, 0.8, 0.55), 1200, 0.5); return bodies.add('star', pos, v, mass); }
+function makeHole(pos) { nebula.emitBurst(pos, new THREE.Color(0.32, 0.18, 0.75), 450, 1.3); nova.chroma = 0.4; return bodies.add('hole', pos, new THREE.Vector3(), 3); }
+function supernova(star) {
+  const p = star.pos.clone(), c = star.color.clone(), m = star.mass; bodies.remove(star);
+  nebula.emitBurst(p, c, 4500, 1.6);
+  galaxy.u.bangPos.value.copy(p); nova.explode = 0.45; nova.chroma = 0.6; U.flash.value = 0.22;
+  say('Supernova', m > 1.6 ? 'It collapsed into a black hole' : 'Its gas seeds the next stars');
+  if (m > 1.6) setTimeout(() => bodies.add('hole', p, new THREE.Vector3(), m * 0.6), 400);
+}
+function bodyEvents() {
+  for (const ev of bodies.events.splice(0)) {
+    if (ev.into === 'hole') nebula.emitBurst(ev.pos, new THREE.Color(1, 0.55, 0.2), 900, 0.6);
+    else nebula.emitBurst(ev.pos, ev.color || new THREE.Color(1, 1, 1), ev.mass > 0.2 ? 1800 : 500, ev.mass > 0.2 ? 0.9 : 0.4);
+    nova.chroma = Math.max(nova.chroma, ev.mass > 0.2 ? 0.5 : 0.15);
+  }
+}
+
+// hands: pinch & release = planet, pinch & hold = star (bigger the longer), two fists together = black hole,
+// point = paint nebula, fist -> open near a star = supernova
+const hc = [0, 1].map(() => ({ pinching: false, t0: 0, tip: null, burstWas: 0 }));
+let fistsT = 0, holeCooldown = 0;
+const protostars = []; // overlay previews: {x, y, r}
+function handCreate(dt, now) {
+  protostars.length = 0;
+  if (!createMode || mode !== 'galaxy' || hands.mode !== 'camera') return;
+  hands.hands.forEach((h, i) => {
+    const c = hc[i]; if (h.active < 0.7) { c.pinching = false; c.tip = null; return; }
+    const on = h.lat.pinch.on;
+    if (on && !c.pinching) { c.pinching = true; c.t0 = now; }
+    if (on) { const held = (now - c.t0) / 1000; if (held > 0.3) { const s = toScreen(h.pos); protostars.push({ x: s.x, y: s.y, r: 8 + Math.min(held, 3) * 14 }); } }
+    if (!on && c.pinching) {
+      c.pinching = false; const held = (now - c.t0) / 1000;
+      const fling = h.vel.clone().multiplyScalar(0.35).clampLength(0, 3);
+      const vel = fling.length() > 0.4 ? fling : null;
+      if (held < 0.3) makePlanet(h.pos, vel); else makeStar(h.pos, vel, THREE.MathUtils.clamp(held * 0.9, 0.3, 3));
+    }
+    // paint nebula with a pointing fingertip
+    if (h.point > 0.6 && h.world) { const tip = h.world[8].clone(); if (c.tip && c.tip.distanceTo(tip) > 0.01) nebula.emitStroke(c.tip, tip, hueColor(now / 1000)); c.tip = tip; } else c.tip = null;
+    // supernova: the explode gesture next to a star
+    if (h.burst > 0.9 && c.burstWas <= 0.9) { const st = bodies.nearest(h.pos, ['star'], 1.1); if (st) supernova(st); }
+    c.burstWas = h.burst;
+  });
+  const [a, b] = hands.hands;
+  const fists = a.active > 0.7 && b.active > 0.7 && a.fist > 0.8 && b.fist > 0.8 && a.pos.distanceTo(b.pos) < 1.4;
+  fistsT = fists ? fistsT + dt : 0; holeCooldown -= dt;
+  if (fistsT > 0.8 && holeCooldown <= 0) { makeHole(a.pos.clone().add(b.pos).multiplyScalar(0.5)); fistsT = 0; holeCooldown = 2; say('Black hole', 'It will swallow anything that gets too close'); }
+  if (fistsT > 0) { const m = toScreen(a.pos.clone().add(b.pos).multiplyScalar(0.5)); protostars.push({ x: m.x, y: m.y, r: 10 + fistsT * 40, hole: true }); }
+}
+
+// mouse tools
+const mc = { down: false, t0: 0, x: 0, y: 0, world: null, last: null, lastT: 0 };
+const screenWorld = (x, y) => toWorld(x / innerWidth, y / innerHeight, 0);
+function mouseCreateDown(e) {
+  Object.assign(mc, { down: true, t0: performance.now(), x: e.clientX, y: e.clientY, world: screenWorld(e.clientX, e.clientY), last: screenWorld(e.clientX, e.clientY), lastT: performance.now() });
+  if (tool === 'hole') { makeHole(mc.world); say('Black hole', 'It will swallow anything that gets too close'); mc.down = false; }
+  if (tool === 'nova') { const st = bodies.nearest(mc.world, ['star'], 1.2); if (st) supernova(st); else say('Click a star', 'to make it go supernova'); mc.down = false; }
+}
+function mouseCreateMove(e) {
+  if (!mc.down) return;
+  const w = screenWorld(e.clientX, e.clientY);
+  if (tool === 'nebula') { nebula.emitStroke(mc.last, w, hueColor(performance.now() / 1000)); }
+  mc.vel = w.clone().sub(mc.last).divideScalar(Math.max(0.008, (performance.now() - mc.lastT) / 1000));
+  mc.last = w; mc.lastT = performance.now();
+}
+function mouseCreateUp(e) {
+  if (!mc.down) return; mc.down = false;
+  const w = screenWorld(e.clientX, e.clientY); const held = (performance.now() - mc.t0) / 1000;
+  const moved = Math.hypot(e.clientX - mc.x, e.clientY - mc.y);
+  const fling = moved > 12 && mc.vel ? mc.vel.clone().multiplyScalar(0.35).clampLength(0, 3) : null;
+  if (tool === 'planet') makePlanet(moved > 12 ? mc.world : w, fling);
+  if (tool === 'star') makeStar(moved > 12 ? mc.world : w, fling, THREE.MathUtils.clamp(0.3 + held * 0.9, 0.3, 3));
+}
+function setCreate(on) {
+  createMode = on; $('btnCreate').classList.toggle('on', on); $('tools2').hidden = !on; setGuide();
+  if (on) say('Create', hands.mode === 'camera' ? 'Pinch to make planets and stars' : 'Pick a tool, then click in space');
+}
+
 // ---------------------------------------------------------------- mouse / keys navigation
 const glc = $('gl'); let drag = null;
-glc.addEventListener('pointerdown', (e) => { if (mode === 'universe') drag = { x: e.clientX, y: e.clientY, moved: 0 }; });
+glc.addEventListener('pointerdown', (e) => { if (mode === 'universe') drag = { x: e.clientX, y: e.clientY, moved: 0 }; else if (mode === 'galaxy' && createMode) mouseCreateDown(e); });
 addEventListener('pointermove', (e) => {
+  if (mode === 'galaxy' && createMode) mouseCreateMove(e);
   if (mode === 'universe') {
     if (drag) { const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.moved += Math.abs(dx) + Math.abs(dy); rig.orbit(-dx * 0.004, -dy * 0.004); drag.x = e.clientX; drag.y = e.clientY; }
     else if (hands.mode !== 'camera' || !hands.hands.some((h) => h.point > 0.6)) hoverG = pickGalaxy(e.clientX, e.clientY);
   }
 });
-addEventListener('pointerup', (e) => { if (mode === 'universe' && drag && drag.moved < 6) { const g = pickGalaxy(e.clientX, e.clientY); if (g) enterGalaxy(g); } drag = null; });
+addEventListener('pointerup', (e) => { if (mode === 'galaxy' && createMode) mouseCreateUp(e); if (mode === 'universe' && drag && drag.moved < 6) { const g = pickGalaxy(e.clientX, e.clientY); if (g) enterGalaxy(g); } drag = null; });
 glc.addEventListener('wheel', (e) => {
   e.preventDefault();
   rig.zoom(Math.exp(e.deltaY * 0.0012));
@@ -236,6 +352,8 @@ glc.addEventListener('wheel', (e) => {
 }, { passive: false });
 addEventListener('keydown', (e) => {
   if (e.key === 'Escape') exitGalaxy();
+  if (e.key === 'c' && mode === 'galaxy') setCreate(!createMode);
+  if (createMode && '12345'.includes(e.key)) selectTool(['star', 'planet', 'hole', 'nebula', 'nova'][+e.key - 1]);
   if (e.key === 'r') toggleRecord();
   if (e.key === 'v') $('btnFeed').click();
   if (e.key === 'u') (mode === 'galaxy' ? exitGalaxy() : null);
@@ -271,11 +389,17 @@ const GUIDES = {
     ? ['<b>Open palm</b> to turn the sky', '<b>Both palms</b> spread to zoom', '<b>Point and hold</b> on a galaxy to fly in']
     : ['<b>Drag</b> to turn', '<b>Scroll</b> to zoom', '<b>Click</b> a galaxy to fly in'],
   flying: () => [],
+  create: (cam) => cam
+    ? ['<b>Pinch &amp; release</b> = planet', '<b>Pinch &amp; hold</b> = star', '<b>Two fists together</b> = black hole', '<b>Point</b> to paint nebula', '<b>Fist → open</b> by a star = supernova']
+    : ['<b>1</b> Star: hold longer for bigger', '<b>2</b> Planet: click to orbit, drag to fling', '<b>3</b> Black hole', '<b>4</b> Nebula: drag to paint', '<b>5</b> Supernova: click a star'],
 };
+function selectTool(t) { tool = t; document.querySelectorAll('#tools2 [data-tool]').forEach((b) => b.classList.toggle('on', b.dataset.tool === t)); }
 function setGuide() {
-  $('guide').innerHTML = GUIDES[mode](hands.mode === 'camera').map((t) => `<li>${t}</li>`).join('');
-  $('btnUniverse').textContent = mode === 'galaxy' ? 'Universe' : 'Universe';
+  const key = mode === 'galaxy' && createMode ? 'create' : mode;
+  $('guide').innerHTML = GUIDES[key](hands.mode === 'camera').map((t) => `<li>${t}</li>`).join('');
   $('btnUniverse').hidden = mode !== 'galaxy';
+  $('btnCreate').hidden = mode !== 'galaxy';
+  $('tools2').hidden = !(mode === 'galaxy' && createMode);
 }
 let sayT;
 function say(title, sub) {
@@ -310,6 +434,9 @@ $('btnMouse').onclick = () => start('mouse');
 $('btnRec').onclick = toggleRecord;
 $('btnFeed').onclick = () => gsap.to(U.feed, { value: U.feed.value > 0.5 ? 0 : 1, duration: 0.8 });
 $('btnUniverse').onclick = () => exitGalaxy();
+$('btnCreate').onclick = () => setCreate(!createMode);
+document.querySelectorAll('#tools2 [data-tool]').forEach((b) => (b.onclick = () => selectTool(b.dataset.tool)));
+$('btnClear').onclick = () => { bodies.clear(); say('Cleared', ''); };
 
 // ---------------------------------------------------------------- loop
 let last = performance.now(), seenHand = false;
@@ -329,7 +456,13 @@ renderer.setAnimationLoop((now) => {
     t.active.value = live ? h.active : 0; t.pinch.value = h.pinch; t.fist.value = h.fist; t.open.value = h.open; t.burst.value = live ? h.burst : 0; t.point.value = h.point;
     for (let j = 0; j < 21; j++) u.joints.array[i * 21 + j].copy(live && h.active > 0.3 && hands.mode === 'camera' ? h.world[j] : FAR);
   });
+  handCreate(dt, now);
+  if (live) bodies.step(dt);
+  bodyEvents();
+  nova.explode *= Math.exp(-dt * 2.5); nova.chroma *= Math.exp(-dt * 2.0); if (nova.explode < 0.01) nova.explode = 0;
+  if (createMode && hands.mode === 'mouse') u.hands[0].active.value = 0; // the mouse builds, it doesn't push stars
   updateBang(dt);
+  nebula.update(renderer, dt, now / 1000);
   if (!seenHand && hands.mode === 'camera' && hands.hands.some((h) => h.active > 0.5)) { seenHand = true; gsap.to(status, { opacity: 0, duration: 1 }); }
   if (u.fade.value > 0.001) renderer.compute(galaxy.compute);
   galaxy.sprite.visible = u.fade.value > 0.001;
@@ -346,4 +479,4 @@ if (q.has('debug')) {
     el.textContent = `render ${(frames * 1000 / (n - t)).toFixed(0)} fps · tracking ${(st.hz || 0).toFixed(0)} Hz · ${(st.ms || 0).toFixed(0)} ms · ${mode}`; frames = 0; t = n; }
     requestAnimationFrame(loop); })();
 }
-window.__aether = { renderer, galaxy, hands, camera, rig, universe, enterGalaxy, exitGalaxy, get mode() { return mode; } };
+window.__aether = { renderer, galaxy, hands, camera, rig, universe, enterGalaxy, exitGalaxy, bodies, nebula, setCreate, selectTool, supernova, toWorld, get mode() { return mode; } };

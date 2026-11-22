@@ -2,10 +2,10 @@
 import * as THREE from 'three/webgpu';
 import {
   Fn, float, vec2, vec3, vec4, uniform, instancedArray, instanceIndex, hash, sin, cos, sqrt, pow, exp, mix,
-  clamp, smoothstep, length, normalize, cross, dot, max, min, mx_noise_vec3, uv, PI2, select, uniformArray, Loop, int,
+  clamp, smoothstep, length, normalize, cross, dot, max, min, mx_noise_vec3, uv, PI2, select, uniformArray, Loop, int, abs, If,
 } from 'three/tsl';
 
-export function makeGalaxy({ count }) {
+export function makeGalaxy({ count, bodies }) {
   const pos = instancedArray(count, 'vec4');  // xyz, w = brightness seed
   const vel = instancedArray(count, 'vec4');  // xyz, w = heat (recent speed)
   const home = instancedArray(count, 'vec4'); // xyz in galaxy frame, w = radius 0..1
@@ -96,11 +96,25 @@ export function makeGalaxy({ count }) {
     force.addAssign(cross(db.div(rb), vec3(0, 0, 1)).mul(u.implode).mul(14).mul(exp(rb.negate())));
     force.addAssign(db.div(rb).mul(u.explode).mul(-70).mul(exp(rb.div(4).negate())));
     grabAll.assign(max(grabAll, u.implode));
+    // gravity from the stars, planets and black holes you created; black holes swallow what crosses the horizon
+    const captured = float(0).toVar();
+    if (bodies) Loop({ start: int(0), end: int(bodies.array.length) }, ({ i }) => {
+      const b = bodies.element(i); const m = b.w; const am = abs(m);
+      const dbd = b.xyz.sub(p); const r2b = dot(dbd, dbd).add(0.02); const rbd = sqrt(r2b);
+      const k = select(m.lessThan(0), float(2.4), float(0.9));
+      force.addAssign(clamp(dbd.mul(am.mul(k).div(r2b.mul(rbd))), -25, 25));
+      grabAll.assign(max(grabAll, min(am.mul(exp(r2b.div(0.25).negate())).mul(0.6), 0.9)));
+      // black holes: stars spiral in as an accretion disk and vanish well outside the visible horizon (dark shadow)
+      const isHole = select(m.lessThan(0), float(1), float(0));
+      force.addAssign(cross(dbd.div(rbd), normalize(vec3(0, 1, 0.35))).mul(am.mul(1.4).div(r2b.add(0.05))).mul(isHole));
+      If(m.lessThan(0).and(rbd.lessThan(pow(am, 0.3333).mul(0.3))), () => { captured.assign(1); });
+    });
     const spring = float(1.5).mul(grabAll.oneMinus().mul(0.95).add(0.05));
     force.addAssign(target.sub(p).mul(spring));
     force.addAssign(mx_noise_vec3(p.mul(0.7).add(vec3(0, u.time.mul(0.07), 0))).mul(0.35));    // living drift
-    const nv = v.add(force.mul(u.dt)).mul(exp(u.dt.mul(-2.6)));
-    const np = p.add(nv.mul(u.dt));
+    const nv0 = v.add(force.mul(u.dt)).mul(exp(u.dt.mul(-2.6)));
+    const nv = select(captured.greaterThan(0.5), vec3(0), nv0);
+    const np = select(captured.greaterThan(0.5), target, p.add(nv0.mul(u.dt)));   // swallowed stars are recycled into their orbit
     const heat = mix(V.w, clamp(length(nv).mul(0.45), 0, 2), 0.15);
     V.assign(vec4(nv, heat));
     P.assign(vec4(np, P.w));
