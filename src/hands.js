@@ -127,6 +127,7 @@ export class Hands {
     // all landmarks -> screen + world (overlay + whole-hand colliders)
     h.screen = mir.map((p) => videoToScreen(p.x, p.y));
     h.screen.forEach((s, i) => { const w = toWorld(s.x, s.y, fd - mir[i].z * 4); if (wasActive) h.world[i].lerp(w, 0.7); else h.world[i].copy(w); });
+    if (h.active <= 0.05) h.since = performance.now(); // when this hand (re)appeared
     h.active = Math.min(1, h.active + dt * 6); h.lm = mir;
   }
 

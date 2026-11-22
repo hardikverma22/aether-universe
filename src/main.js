@@ -55,7 +55,8 @@ scene.add(nebula.sprite);
 // post: bloom, then gravitational lensing + chromatic aberration + flash
 const pipeline = new THREE.RenderPipeline(renderer);
 const scenePass = pass(scene, camera);
-const lit = convertToTexture(scenePass.add(bloom(scenePass, 0.8, 0.6, 0.22)));
+const glowFx = bloom(scenePass, 0.8, 0.6, 0.22);
+const lit = convertToTexture(scenePass.add(glowFx));
 pipeline.outputNode = Fn(() => {
   const uvn = screenUV; const asp = float(innerWidth / innerHeight);
   const d = uvn.sub(U.bangUV).mul(vec2(asp, 1)); const r = length(d).add(1e-3); const dir = d.div(r).div(vec2(asp, 1));
@@ -122,6 +123,14 @@ function drawOverlay() {
       ctx.beginPath(); for (const [a, b] of CONNECTIONS) { ctx.moveTo(...P[a]); ctx.lineTo(...P[b]); } ctx.stroke();
       ctx.fillStyle = `rgba(230,236,255,${0.55 * h.active})`;
       for (const i of [4, 8, 12, 16, 20]) { ctx.beginPath(); ctx.arc(...P[i], 2.2, 0, 7); ctx.fill(); }
+      // live gesture label above the hand: what the app thinks you're doing right now
+      const g = h.point > 0.6 ? '👉 Point' : h.lat.pinch.on ? '🤏 Pinch' : h.lat.fist.on ? '✊ Fist' : h.open > 0.6 ? '✋ Open' : '· Relaxed';
+      const top = Math.min(...P.map((p) => p[1])), cx = P.reduce((a, p) => a + p[0], 0) / 21;
+      ctx.save(); ctx.globalCompositeOperation = 'source-over'; ctx.shadowBlur = 0;
+      ctx.font = '600 14px ui-sans-serif, -apple-system, sans-serif'; const w = ctx.measureText(g).width + 20;
+      ctx.fillStyle = 'rgba(10,10,24,0.72)'; ctx.beginPath(); ctx.roundRect(cx - w / 2, top - 40, w, 26, 13); ctx.fill();
+      ctx.fillStyle = h.point > 0.6 || h.lat.pinch.on || h.lat.fist.on ? '#ffd6aa' : '#e8ecff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(g, cx, top - 27);
+      ctx.restore();
     }
     if (mode !== 'galaxy') continue;
     const s = toScreen(h.pos);
@@ -182,6 +191,7 @@ async function enterGalaxy(g) {
 }
 async function exitGalaxy() {
   if (mode !== 'galaxy' || rig.busy) return;
+  unfocus();
   if (createMode) setCreate(false);
   mode = 'flying'; setGuide();
   const g = current; const back = camera.position.clone().sub(g.pos).normalize();
@@ -241,15 +251,68 @@ function handNavigation(dt) {
       if (g && g === hoverG) { dwell += dt / 1.0; if (dwell >= 1) enterGalaxy(g); } else { hoverG = g; dwell = 0; }
     } else if (hands.mode === 'camera') dwell = Math.max(0, dwell - dt * 2);
   }
+  if (mode === 'galaxy' && !createMode && bodies.list.length) {
+    const pointer = act.find((h) => h.point > 0.6 && h.screen);
+    const b = pointer ? pickBody(pointer.screen[8].x * innerWidth, pointer.screen[8].y * innerHeight) : null;
+    if (b && b === handNavigation.bodyHover) { handNavigation.bodyDwell += dt; if (handNavigation.bodyDwell > 1.2 && focus !== b) focusOn(b); } else { handNavigation.bodyHover = b; handNavigation.bodyDwell = 0; }
+  }
   if (mode === 'galaxy') {
     // hold both open palms still for a moment to zoom back out to the universe
     const still = act.length === 2 && act.every((h) => h.open > 0.7 && h.vel.length() < 0.6) && act[0].pos.distanceTo(act[1].pos) > 2.2;
     stillPalms = still ? stillPalms + dt : 0;
     $('exitRing').style.setProperty('--p', Math.min(1, stillPalms / 1.3));
-    if (stillPalms > 1.3) { stillPalms = 0; exitGalaxy(); }
+    if (stillPalms > 1.3) { stillPalms = 0; if (focus) unfocus(); else exitGalaxy(); }
   }
 }
 
+
+
+// ---------------------------------------------------------------- close-ups: fly to a star or planet and follow it
+let focus = null;
+const describe = (b) => b.type === 'star' ? [`${b.cls}-type star`, `${Math.round(b.temp).toLocaleString()} K · ${b.cls === 'M' ? 'red dwarf' : b.cls === 'K' ? 'orange dwarf' : b.cls === 'G' ? 'Sun-like' : b.cls === 'O' || b.cls === 'B' ? 'blue giant' : 'white star'}`]
+  : b.type === 'hole' ? ['Black hole', `${b.mass.toFixed(1)} masses · swallowing everything nearby`]
+  : [{ terran: 'Ocean world', desert: 'Desert world', ice: 'Ice world', lava: 'Lava world', gas: 'Gas giant' }[b.kind], { terran: 'oceans, continents, clouds, city lights', desert: 'dunes and dust storms', ice: 'frozen crust with deep cracks', lava: 'molten fissures glowing through a dark crust', gas: 'storm bands' + (b.look?.extras.length ? ' and rings' : '') }[b.kind]];
+function focusOn(b) {
+  if (!b || mode !== 'galaxy') return;
+  focus = b; rig.min = b.radius * 2.2; rig.max = 40; rig.goal.radius = b.radius * (b.kind === 'gas' ? 9 : 6.5);
+  const [t, sub] = describe(b); say(t, sub); $('focusBar').hidden = false; $('focusName').textContent = t;
+  // like a telescope: auto-exposure, a tighter glow, and the galaxy's particles fall back so the world reads clearly
+  const isStar = b.type === 'star';
+  gsap.to(renderer, { toneMappingExposure: isStar ? 0.45 : 0.9, duration: 1.4 });
+  gsap.to(glowFx.strength, { value: isStar ? 0.35 : 0.45, duration: 1.4 }); gsap.to(glowFx.threshold, { value: isStar ? 0.85 : 0.6, duration: 1.4 });
+  gsap.to(galaxy.u.nearFade.value, { x: b.radius * 6, y: b.radius * 22, duration: 1.4 });
+}
+function unfocus() { if (!focus) return; focus = null; gsap.to(renderer, { toneMappingExposure: 0.95, duration: 1.2 });
+  gsap.to(glowFx.strength, { value: 0.8, duration: 1.2 }); gsap.to(glowFx.threshold, { value: 0.22, duration: 1.2 }); gsap.to(galaxy.u.nearFade.value, { x: 0.25, y: 1.2, duration: 1.2 }); rig.min = 4; rig.max = 40; rig.goal.radius = GALAXY_R; $('focusBar').hidden = true; }
+function updateFocus(dt) {
+  if (focus && !bodies.list.includes(focus)) unfocus();
+  if (mode !== 'galaxy' || rig.busy) return;
+  const goal = focus ? focus.pos : current.pos;
+  rig.target.lerp(goal, focus ? 1 - Math.exp(-dt * 5) : 1 - Math.exp(-dt * 3));
+}
+function pickBody(px, py) {
+  let best = null, bd = 1e9;
+  for (const b of bodies.list) {
+    const s = toScreen(b.pos); if (!s.front) continue;
+    const rpx = Math.max(16, (b.radius / camera.position.distanceTo(b.pos)) * innerHeight * 1.3);
+    const d = Math.hypot(s.x - px, s.y - py); if (d < rpx && d < bd) { bd = d; best = b; }
+  }
+  return best;
+}
+// a ready-made solar system so every kind of world is on show at once
+function spawnSystem(at) {
+  const fwd = camFwd(); const up = new THREE.Vector3(0, 1, 0).addScaledVector(fwd, -fwd.y).normalize(); const side = new THREE.Vector3().crossVectors(fwd, up).normalize();
+  const sunPos = at || current.pos.clone().addScaledVector(side, 1.9);
+  const sun = makeStar(sunPos, bodies.orbitVelocity(sunPos, fwd), 3.2, 5778); // heavy enough to hold its planets, coloured like our Sun
+  // planets orbit in a plane tilted toward the camera so the whole system is visible
+  const n = fwd.clone().negate().lerp(up, 0.55).normalize(); const e1 = new THREE.Vector3().crossVectors(n, side).normalize(); const e2 = new THREE.Vector3().crossVectors(n, e1).normalize();
+  [['lava', 0.42], ['terran', 0.62], ['desert', 0.82], ['gas', 1.15], ['ice', 1.45]].forEach(([kind, r], i) => {
+    const a = i * 2.1; const off = e1.clone().multiplyScalar(Math.cos(a) * r).addScaledVector(e2, Math.sin(a) * r);
+    const pos = sunPos.clone().add(off); const tang = new THREE.Vector3().crossVectors(n, off).normalize();
+    bodies.add('planet', pos, sun.vel.clone().addScaledVector(tang, Math.sqrt(sun.mass / r)), 0.01, kind);
+  });
+  say('A new solar system', 'Double-click any world for a close-up');
+}
 
 // ---------------------------------------------------------------- CREATE mode: stars, planets, black holes, nebulae, supernovae
 let createMode = false, tool = 'star';
@@ -257,7 +320,7 @@ const nova = { explode: 0, chroma: 0 };
 const camFwd = () => camera.getWorldDirection(new THREE.Vector3());
 const hueColor = (t) => new THREE.Color().setHSL((t * 0.05) % 1, 0.75, 0.6);
 function makePlanet(pos, vel) { return bodies.add('planet', pos, vel ?? bodies.orbitVelocity(pos, camFwd()), 0.01); }
-function makeStar(pos, vel, mass) { const v = vel ?? bodies.orbitVelocity(pos, camFwd()).multiplyScalar(0.8); nebula.emitBurst(pos, new THREE.Color(1, 0.8, 0.55), 1200, 0.5); return bodies.add('star', pos, v, mass); }
+function makeStar(pos, vel, mass, temp) { const v = vel ?? bodies.orbitVelocity(pos, camFwd()).multiplyScalar(0.8); nebula.emitBurst(pos, new THREE.Color(1, 0.8, 0.55), 1200, 0.5); return bodies.add('star', pos, v, mass, undefined, { temp }); }
 function makeHole(pos) { nebula.emitBurst(pos, new THREE.Color(0.32, 0.18, 0.75), 450, 1.3); nova.chroma = 0.4; return bodies.add('hole', pos, new THREE.Vector3(), 3); }
 function supernova(star) {
   const p = star.pos.clone(), c = star.color.clone(), m = star.mass; bodies.remove(star);
@@ -310,6 +373,8 @@ function handCreate(dt, now) {
 const mc = { down: false, t0: 0, x: 0, y: 0, world: null, last: null, lastT: 0 };
 const screenWorld = (x, y) => toWorld(x / innerWidth, y / innerHeight, 0);
 function mouseCreateDown(e) {
+  if (pickBody(e.clientX, e.clientY) && tool !== 'nova') return; // clicking a body selects it (double-click = close-up), never spawns on top
+  if (tool === 'system') { spawnSystem(screenWorld(e.clientX, e.clientY)); return; }
   Object.assign(mc, { down: true, t0: performance.now(), x: e.clientX, y: e.clientY, world: screenWorld(e.clientX, e.clientY), last: screenWorld(e.clientX, e.clientY), lastT: performance.now() });
   if (tool === 'hole') { makeHole(mc.world); say('Black hole', 'It will swallow anything that gets too close'); mc.down = false; }
   if (tool === 'nova') { const st = bodies.nearest(mc.world, ['star'], 1.2); if (st) supernova(st); else say('Click a star', 'to make it go supernova'); mc.down = false; }
@@ -348,12 +413,13 @@ addEventListener('pointerup', (e) => { if (mode === 'galaxy' && createMode) mous
 glc.addEventListener('wheel', (e) => {
   e.preventDefault();
   rig.zoom(Math.exp(e.deltaY * 0.0012));
-  if (mode === 'galaxy' && rig.goal.radius >= rig.max - 0.5 && e.deltaY > 0) exitGalaxy();
+  if (mode === 'galaxy' && focus && e.deltaY > 0 && rig.goal.radius > focus.radius * 30) unfocus();
+  else if (mode === 'galaxy' && !focus && rig.goal.radius >= rig.max - 0.5 && e.deltaY > 0) exitGalaxy();
 }, { passive: false });
 addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') exitGalaxy();
+  if (e.key === 'Escape') { if (focus) unfocus(); else exitGalaxy(); }
   if (e.key === 'c' && mode === 'galaxy') setCreate(!createMode);
-  if (createMode && '12345'.includes(e.key)) selectTool(['star', 'planet', 'hole', 'nebula', 'nova'][+e.key - 1]);
+  if (createMode && '123456'.includes(e.key)) selectTool(['star', 'planet', 'hole', 'nebula', 'nova', 'system'][+e.key - 1]);
   if (e.key === 'r') toggleRecord();
   if (e.key === 'v') $('btnFeed').click();
   if (e.key === 'u') (mode === 'galaxy' ? exitGalaxy() : null);
@@ -391,7 +457,7 @@ const GUIDES = {
   flying: () => [],
   create: (cam) => cam
     ? ['<b>Pinch &amp; release</b> = planet', '<b>Pinch &amp; hold</b> = star', '<b>Two fists together</b> = black hole', '<b>Point</b> to paint nebula', '<b>Fist → open</b> by a star = supernova']
-    : ['<b>1</b> Star: hold longer for bigger', '<b>2</b> Planet: click to orbit, drag to fling', '<b>3</b> Black hole', '<b>4</b> Nebula: drag to paint', '<b>5</b> Supernova: click a star'],
+    : ['<b>1</b> Star: hold longer for bigger', '<b>2</b> Planet: click to orbit, drag to fling', '<b>3</b> Black hole', '<b>4</b> Nebula: drag to paint', '<b>5</b> Supernova: click a star', '<b>6</b> System: a sun + 5 worlds', '<b>Double-click</b> a world for a close-up'],
 };
 function selectTool(t) { tool = t; document.querySelectorAll('#tools2 [data-tool]').forEach((b) => b.classList.toggle('on', b.dataset.tool === t)); }
 function setGuide() {
@@ -399,6 +465,7 @@ function setGuide() {
   $('guide').innerHTML = GUIDES[key](hands.mode === 'camera').map((t) => `<li>${t}</li>`).join('');
   $('btnUniverse').hidden = mode !== 'galaxy';
   $('btnCreate').hidden = mode !== 'galaxy';
+  $('btnSystem').hidden = mode !== 'galaxy';
   $('tools2').hidden = !(mode === 'galaxy' && createMode);
 }
 let sayT;
@@ -443,12 +510,13 @@ async function switchInput() {
 }
 
 // ---------------------------------------------------------------- guided tutorial: confirms each gesture as you do it
+const settled = (h) => h.active > 0.8 && performance.now() - (h.since || 0) > 600;
 const COACH = {
   camera: [
-    { text: 'Raise one hand so the camera can see it', done: () => hands.hands.some((h) => h.active > 0.8), ok: 'Got your hand' },
-    { text: 'Sweep your hand through the stars', done: () => hands.hands.some((h) => h.active > 0.8 && h.vel.length() > 1.5), hold: 0.15, ok: 'You moved the stars' },
-    { text: 'Pinch your thumb and index finger together', done: () => hands.hands.some((h) => h.active > 0.8 && h.lat.pinch.on), hold: 0.3, ok: 'Gathering stars' },
-    { text: 'Make a fist… then open it fast', done: () => hands.hands.some((h) => h.burst > 0.8), ok: 'Boom' },
+    { text: '✋ Raise one hand so the camera can see it', done: () => hands.hands.some((h) => h.active > 0.8), ok: 'Got your hand' },
+    { text: '✋ Sweep your open hand sideways through the stars', done: () => hands.hands.some((h) => settled(h) && h.vel.length() > 1.8), hold: 0.2, ok: 'You moved the stars' },
+    { text: '🤏 Pinch your thumb and index finger together', done: () => hands.hands.some((h) => settled(h) && h.lat.pinch.on), hold: 0.35, ok: 'Gathering stars' },
+    { text: '✊ Make a fist… then open it fast', done: () => hands.hands.some((h) => settled(h) && h.burst > 0.8), ok: 'Boom' },
     { text: 'Press ✦ Create (or C) to make stars and planets', done: () => createMode, ok: 'Create mode on' },
   ],
   mouse: [
@@ -471,17 +539,18 @@ function coachRender() {
   el.querySelector('.cdots').innerHTML = st.map((_, k) => `<i class="${coach.done[k] ? 'd' : k === i ? 'c' : ''}"></i>`).join('');
   el.querySelector('.cstep').textContent = i < 0 ? 'All done' : `Step ${i + 1} of ${st.length}`;
 }
-// every step is checked every frame, so gestures count in any order
+// strictly one step at a time; a hand that just appeared is ignored for a moment (its first frames look like a sweep)
 function coachTick(dt) {
   if (!coach.steps || $('coach').hidden) return;
-  let changed = false;
-  coach.steps.forEach((s, k) => {
-    if (coach.done[k]) return;
-    const now = s.done(); coach.t[k] = now ? coach.t[k] + dt : 0;
-    if (now && coach.t[k] >= (s.hold || 0)) { coach.done[k] = true; coach.flash = 1.1; coach.flashText = s.ok; changed = true; }
-  });
-  if (coach.flash > 0) { coach.flash -= dt; if (coach.flash <= 0) { changed = true; if (coachCur() < 0) say('You\'re all set', hands.mode === 'camera' ? 'Hold both palms still to zoom out to the universe' : 'Click a galaxy to fly into it'); } }
-  if (changed) coachRender();
+  if (coach.flash > 0) {
+    coach.flash -= dt;
+    if (coach.flash <= 0) { coachRender(); if (coachCur() < 0) say('You\'re all set', hands.mode === 'camera' ? 'Hold both palms still to zoom out to the universe' : 'Click a galaxy to fly into it'); }
+    return;
+  }
+  const k = coachCur(); if (k < 0) return;
+  const s = coach.steps[k];
+  const now = s.done(); coach.t[k] = now ? coach.t[k] + dt : 0;
+  if (now && coach.t[k] >= (s.hold || 0)) { coach.done[k] = true; coach.flash = 1.4; coach.flashText = s.ok; coachRender(); }
 }
 
 $('btnCam').onclick = () => start('camera');
@@ -491,6 +560,9 @@ $('btnInput').onclick = switchInput;
 $('coachSkip').onclick = () => { $('coach').hidden = true; };
 $('btnFeed').onclick = () => gsap.to(U.feed, { value: U.feed.value > 0.5 ? 0 : 1, duration: 0.8 });
 $('btnUniverse').onclick = () => exitGalaxy();
+glc.addEventListener('dblclick', (e) => { if (mode === 'galaxy') { const b = pickBody(e.clientX, e.clientY); if (b) focusOn(b); } });
+$('focusBack').onclick = () => unfocus();
+$('btnSystem').onclick = () => { if (mode === 'galaxy') spawnSystem(); };
 $('btnCreate').onclick = () => setCreate(!createMode);
 document.querySelectorAll('#tools2 [data-tool]').forEach((b) => (b.onclick = () => selectTool(b.dataset.tool)));
 $('btnClear').onclick = () => { bodies.clear(); say('Cleared', ''); };
@@ -504,9 +576,10 @@ renderer.setAnimationLoop((now) => {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   hands.update(now, dt, videoToScreen, toWorld);
   handNavigation(dt);
+  updateFocus(dt);
   rig.update(dt);
   const u = galaxy.u; u.time.value = now / 1000; u.dt.value = dt;
-  const live = mode === 'galaxy';
+  const live = mode === 'galaxy' && !focus;
   hands.hands.forEach((h, i) => {
     const t = u.hands[i];
     t.pos.value.copy(h.pos); t.vel.value.copy(h.vel).clampLength(0, 14);

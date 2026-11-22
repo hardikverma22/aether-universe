@@ -7,13 +7,15 @@ import {
   normalWorld, dot, max, instancedBufferAttribute, normalize,
 } from 'three/tsl';
 
+import { makeStarLook, makePlanetLook, planetRadius, PLANET_KINDS, blackbody, starTemp, spectralClass } from './looks.js';
+
 export const MAX = 32;
 const TRAIL = 56;
 const G = 1.0, SOFT = 0.004, CORE_MASS = 0.8;
 
 // star colour by mass: red dwarf -> yellow -> white -> blue giant
-const starColor = (m) => new THREE.Color().setHSL(THREE.MathUtils.lerp(0.02, 0.6, THREE.MathUtils.smoothstep(m, 0.3, 3.0)), 0.9, 0.62);
-const radiusOf = (b) => b.type === 'star' ? 0.06 + 0.05 * Math.cbrt(b.mass) : b.type === 'planet' ? 0.04 : 0.11 * Math.cbrt(b.mass);
+const starColor = (m) => blackbody(starTemp(m));
+const radiusOf = (b) => b.type === 'star' ? 0.09 + 0.08 * Math.cbrt(b.mass) : b.type === 'planet' ? planetRadius(b.kind) : 0.11 * Math.cbrt(b.mass);
 
 export class Bodies {
   constructor(scene) {
@@ -38,10 +40,11 @@ export class Bodies {
 
   setCenter(v) { this.center.copy(v); }
 
-  add(type, pos, vel, mass) {
+  add(type, pos, vel, mass, kind, opts = {}) {
     if (this.list.length >= MAX) this.remove(this.list.find((b) => b.type === 'planet') || this.list[0]);
-    const b = { type, pos: pos.clone(), vel: vel.clone(), mass, born: performance.now(), trail: Array.from({ length: TRAIL }, () => pos.clone()) };
-    b.group = new THREE.Group(); b.group.position.copy(pos);
+    if (type === 'planet') kind = kind || PLANET_KINDS[Math.floor(Math.random() * PLANET_KINDS.length)];
+    const b = { type, kind, pos: pos.clone(), vel: vel.clone(), mass: type === 'planet' && kind === 'gas' ? mass * 5 : mass, born: performance.now(), trail: Array.from({ length: TRAIL }, () => pos.clone()) };
+    b.group = new THREE.Group(); b.group.position.copy(pos); if (opts.temp) b.fixedTemp = opts.temp;
     if (type === 'star') this._starMesh(b);
     else if (type === 'planet') this._planetMesh(b);
     else this._holeMesh(b);
@@ -55,28 +58,13 @@ export class Bodies {
   clear() { [...this.list].forEach((b) => this.remove(b)); }
 
   _starMesh(b) {
-    b.color = starColor(b.mass); b.u = { col: uniform(b.color.clone()) };
-    const m = new THREE.MeshBasicNodeMaterial();
-    const n = mx_noise_float(positionLocal.mul(4).add(vec3(0, time.mul(0.6), 0))).mul(0.5).add(0.5);
-    m.colorNode = vec3(b.u.col).mul(n.mul(0.5).add(0.85));
-    b.core = new THREE.Mesh(this.geoSphere, m); b.group.add(b.core);
-    const cm = new THREE.SpriteNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
-    const d = length(uv().sub(0.5)).mul(2);
-    const rays = sin(atan(uv().y.sub(0.5), uv().x.sub(0.5)).mul(8).add(time.mul(0.7))).mul(0.12).add(0.88);
-    cm.colorNode = vec4(vec3(b.u.col).mul(1.4), 1); cm.opacityNode = smoothstep(1.0, 0.0, d).pow(2.8).mul(rays).mul(0.38);
-    b.corona = new THREE.Sprite(cm); b.group.add(b.corona);
+    b.look = makeStarLook(b); b.core = b.look.core; b.group.add(b.core); b.look.extras.forEach((e) => b.group.add(e));
+    b.temp = b.fixedTemp || starTemp(b.mass); b.color = blackbody(b.temp); b.cls = spectralClass(b.temp); b.look.u.col.value.copy(b.color);
   }
 
   _planetMesh(b) {
-    const hue = Math.random();
-    const a = new THREE.Color().setHSL(hue, 0.55, 0.55), c = new THREE.Color().setHSL((hue + 0.12) % 1, 0.5, 0.3);
-    b.u = { a: uniform(a), c: uniform(c), light: uniform(new THREE.Vector3(0, 1, 0)) };
-    const m = new THREE.MeshBasicNodeMaterial();
-    const bands = mx_noise_float(vec3(positionLocal.y.mul(9), positionLocal.x.mul(1.5), positionLocal.z.mul(1.5))).mul(0.5).add(0.5);
-    const lit = max(dot(normalWorld, normalize(b.u.light)), 0.0).mul(0.95).add(0.08);
-    m.colorNode = mix(vec3(b.u.c), vec3(b.u.a), bands).mul(lit).mul(1.3);
-    b.core = new THREE.Mesh(this.geoSphere, m); b.group.add(b.core);
-    b.color = a;
+    b.look = makePlanetLook(b, b.kind); b.core = b.look.core; b.group.add(b.core); b.look.extras.forEach((e) => b.group.add(e));
+    b.color = { terran: new THREE.Color(0.4, 0.6, 1), desert: new THREE.Color(1, 0.7, 0.45), ice: new THREE.Color(0.8, 0.9, 1), lava: new THREE.Color(1, 0.4, 0.15), gas: new THREE.Color(0.95, 0.8, 0.6) }[b.kind];
   }
 
   _holeMesh(b) {
@@ -95,20 +83,21 @@ export class Bodies {
   _resize(b) {
     const r = radiusOf(b); b.radius = r;
     b.core.scale.setScalar(r);
-    if (b.corona) b.corona.scale.setScalar(r * 5.5);
+    if (b.look) b.look.scaleExtras(r);
     if (b.disk) b.disk.scale.setScalar(r * 3.0);
-    if (b.type === 'star') { b.color = starColor(b.mass); b.u.col.value.copy(b.color); }
+    if (b.type === 'star') { b.temp = b.fixedTemp || starTemp(b.mass); b.color = blackbody(b.temp); b.cls = spectralClass(b.temp); b.look.u.col.value.copy(b.color); }
   }
 
   /** circular-orbit velocity around the strongest attractor near `pos` (tangent in the view plane) */
   orbitVelocity(pos, viewDir) {
     let best = null, bestA = 0;
     for (const b of this.list) { if (b.type === 'planet') continue; const r = b.pos.distanceTo(pos); const a = b.mass / (r * r + 0.01); if (a > bestA) { bestA = a; best = b; } }
-    const cr = pos.distanceTo(this.center); const coreA = CORE_MASS / (cr * cr + 0.01);
+    const cr = pos.distanceTo(this.center); const coreA = CORE_MASS / (cr * cr + 1.2);
     const anchor = best && bestA > coreA ? best : { pos: this.center, vel: new THREE.Vector3(), mass: CORE_MASS };
     const d = pos.clone().sub(anchor.pos); const r = Math.max(0.05, d.length());
     const t = new THREE.Vector3().crossVectors(d, viewDir).normalize();
-    return t.multiplyScalar(Math.sqrt(G * anchor.mass / r)).add(anchor.vel);
+    const eff = anchor.mass === CORE_MASS && anchor.pos === this.center ? CORE_MASS * r * r / Math.pow(r * r + 1.2, 1.5) * r : anchor.mass; // matches the softened core
+    return t.multiplyScalar(Math.sqrt(G * eff / r)).add(anchor.vel);
   }
 
   nearest(pos, types, within = 1) {
@@ -122,7 +111,7 @@ export class Bodies {
     for (let s = 0; s < sub; s++) {
       for (const a of L) {
         const acc = new THREE.Vector3();
-        const dc = this.center.clone().sub(a.pos); const rc2 = dc.lengthSq() + 0.02;
+        const dc = this.center.clone().sub(a.pos); const rc2 = dc.lengthSq() + 1.2; // soft core: weak tidal pull, so star systems stay intact
         acc.addScaledVector(dc, G * CORE_MASS / (rc2 * Math.sqrt(rc2)));
         for (const b of L) { if (a === b) continue; const d = b.pos.clone().sub(a.pos); const r2 = d.lengthSq() + SOFT; acc.addScaledVector(d, G * b.mass / (r2 * Math.sqrt(r2))); }
         a.vel.addScaledVector(acc.clampLength(0, 60), h);
@@ -154,7 +143,8 @@ export class Bodies {
         const o = (k * TRAIL + i) * 4; ta[o] = p.x; ta[o + 1] = p.y; ta[o + 2] = p.z; ta[o + 3] = (1 - i / TRAIL) * (b.type === 'star' ? 1 : 0.7);
         const c = (k * TRAIL + i) * 3; tc[c] = col.r; tc[c + 1] = col.g; tc[c + 2] = col.b;
       });
-      if (b.type === 'planet') { const st = this.nearest(b.pos, ['star'], 99); b.u.light.value.copy(st ? st.pos.clone().sub(b.pos) : this.center.clone().sub(b.pos)); }
+      if (b.type === 'planet') { const st = this.nearest(b.pos, ['star'], 99); b.look.update(b, st || { pos: this.center, color: new THREE.Color(1.0, 0.86, 0.7) }); }
+      else if (b.look) b.look.update(b);
     });
     for (let k = 0; k < MAX; k++) {
       const b = L[k], v = this.gpu.array[k];

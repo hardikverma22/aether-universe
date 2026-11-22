@@ -2,7 +2,7 @@
 import * as THREE from 'three/webgpu';
 import {
   Fn, float, vec2, vec3, vec4, uniform, instancedArray, instanceIndex, hash, sin, cos, sqrt, pow, exp, mix,
-  clamp, smoothstep, length, normalize, cross, dot, max, min, mx_noise_vec3, uv, PI2, select, uniformArray, Loop, int, abs, If,
+  clamp, smoothstep, length, normalize, cross, dot, max, min, mx_noise_vec3, uv, PI2, select, uniformArray, Loop, int, abs, If, distance, cameraPosition,
 } from 'three/tsl';
 
 export function makeGalaxy({ count, bodies }) {
@@ -11,7 +11,7 @@ export function makeGalaxy({ count, bodies }) {
   const home = instancedArray(count, 'vec4'); // xyz in galaxy frame, w = radius 0..1
 
   const u = {
-    time: uniform(0), dt: uniform(1 / 60), tilt: uniform(1.08), spin: uniform(1), alpha: uniform(0.26),
+    time: uniform(0), dt: uniform(1 / 60), tilt: uniform(1.08), spin: uniform(1), alpha: uniform(0.26), nearFade: uniform(new THREE.Vector2(0.25, 1.2)),
     hands: [0, 1].map(() => ({ pos: uniform(new THREE.Vector3()), vel: uniform(new THREE.Vector3()),
       active: uniform(0), pinch: uniform(0), fist: uniform(0), open: uniform(0), burst: uniform(0), point: uniform(0) })),
     // all 42 hand landmarks in world space (z = 99 when a hand is absent): stars flow around your fingers
@@ -101,9 +101,9 @@ export function makeGalaxy({ count, bodies }) {
     if (bodies) Loop({ start: int(0), end: int(bodies.array.length) }, ({ i }) => {
       const b = bodies.element(i); const m = b.w; const am = abs(m);
       const dbd = b.xyz.sub(p); const r2b = dot(dbd, dbd).add(0.02); const rbd = sqrt(r2b);
-      const k = select(m.lessThan(0), float(2.4), float(0.9));
+      const k = select(m.lessThan(0), float(2.4), float(0.22)); // black holes pull hard; stars and planets only nudge
       force.addAssign(clamp(dbd.mul(am.mul(k).div(r2b.mul(rbd))), -25, 25));
-      grabAll.assign(max(grabAll, min(am.mul(exp(r2b.div(0.25).negate())).mul(0.6), 0.9)));
+      grabAll.assign(max(grabAll, min(am.mul(exp(r2b.div(0.25).negate())).mul(0.6), 0.9).mul(select(m.lessThan(0), float(1), float(0.15)))));
       // black holes: stars spiral in as an accretion disk and vanish well outside the visible horizon (dark shadow)
       const isHole = select(m.lessThan(0), float(1), float(0));
       force.addAssign(cross(dbd.div(rbd), normalize(vec3(0, 1, 0.35))).mul(am.mul(1.4).div(r2b.add(0.05))).mul(isHole));
@@ -131,7 +131,8 @@ export function makeGalaxy({ count, bodies }) {
   const col = mix(base, hot, smoothstep(0.15, 1.1, heat)).mul(P.w.mul(0.7).add(0.5)).mul(heat.mul(0.9).add(1));
   mat.colorNode = vec4(col, 1);
   const soft = smoothstep(0.5, 0.0, length(uv().sub(0.5)));
-  mat.opacityNode = soft.mul(u.alpha).mul(u.fade).mul(select(rad.greaterThan(1.1), float(0.35), float(1)));
+  // particles right next to the camera fade out (no blurry blobs in close-ups)
+  mat.opacityNode = soft.mul(u.alpha).mul(u.fade).mul(smoothstep(u.nearFade.x, u.nearFade.y, distance(P.xyz, cameraPosition))).mul(select(rad.greaterThan(1.1), float(0.35), float(1)));
   mat.scaleNode = float(0.013).mul(P.w.mul(0.8).add(0.5)).mul(heat.mul(0.5).add(1));
   const sprite = new THREE.Sprite(mat);
   sprite.count = count; sprite.frustumCulled = false;
