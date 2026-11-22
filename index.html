@@ -14,7 +14,7 @@
   <section id="intro">
     <p class="eyebrow">A WebGPU experiment</p>
     <h1 id="title">Aether</h1>
-    <p class="lede">A universe of galaxies, and your hands.</p>
+    <p class="lede">Fly from the edge of the universe down to our own Solar System — with your hands.</p>
     <div class="cta">
       <button id="btnCam" class="primary">Use my hands</button>
       <button id="btnMouse">Use the mouse</button>
@@ -23,19 +23,21 @@
   </section>
 
   <div id="hud" hidden>
-    <ul id="guide"></ul>
-    <div id="tools"><button id="btnSystem" title="Spawn a sun with five different worlds">☀ Solar system</button><button id="btnInput" title="Switch between hands and mouse">✋ Hands</button><button id="btnCreate" title="Create stars, planets, black holes (C)">✦ Create</button><button id="btnUniverse" title="Zoom out to the universe (Esc)">Universe</button><button id="btnFeed" title="Show or hide yourself (V)">You</button><button id="btnRec" title="Record a 9:16 clip (R)">● Record</button></div>
+    <nav id="crumbs"></nav>
+    <div id="tools"><button id="btnCreate" title="Make your own planets, stars and black holes (C)" hidden>✦ Create</button><button id="btnInput" title="Switch between hands and mouse">✋ Hands</button><button id="btnFeed" title="Show yourself behind the scene (V)">You</button><button id="btnRec" title="Record a 9:16 clip (R)">● Record</button></div>
     <div id="tools2" hidden>
-      <button data-tool="star" class="on">✦ Star</button><button data-tool="planet">● Planet</button><button data-tool="hole">◉ Black hole</button><button data-tool="nebula">☁ Nebula</button><button data-tool="nova">✺ Supernova</button><button data-tool="system">☀ System</button><button id="btnClear">Clear</button>
+      <button data-tool="planet" class="on">● Planet</button><button data-tool="star">✦ Star</button><button data-tool="hole">◉ Black hole</button><button data-tool="nebula">☁ Nebula</button><button id="btnClear">Clear</button>
     </div>
+    <aside id="panel"><div id="panelTitle"></div><ul id="guide"></ul></aside>
     <div id="coach" hidden><div class="cstep"></div><div class="ctext"></div><div class="cdots"></div><button id="coachSkip">Skip</button></div>
     <div id="banner" hidden></div>
-    <div id="focusBar" hidden><span id="focusName"></span><button id="focusBack">← Back to galaxy</button></div>
     <div id="label" hidden></div>
     <div id="toast"></div>
     <div id="exitRing"></div>
     <div id="status"></div>
+    <p id="credit">Planet textures: Solar System Scope (CC BY 4.0), based on NASA imagery</p>
   </div>
+  <div id="warp"></div>
   <video id="video" playsinline muted hidden></video>
   <script type="module" src="/src/main.js"></script>
 </body>

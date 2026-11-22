@@ -20,6 +20,8 @@ const radiusOf = (b) => b.type === 'star' ? 0.09 + 0.08 * Math.cbrt(b.mass) : b.
 export class Bodies {
   constructor(scene) {
     this.scene = scene; this.list = []; this.center = new THREE.Vector3(); this.events = [];
+    // central attractor (galactic core or a star-system's sun), visual size multiplier and escape radius
+    this.coreMass = CORE_MASS; this.coreSoft = 1.2; this.sizeMul = 1; this.escape = 16;
     // mirrored for the GPU: xyz + signed mass (negative = black hole)
     this.gpu = uniformArray(Array.from({ length: MAX }, () => new THREE.Vector4(0, 0, 9999, 0)), 'vec4');
     this.geoSphere = new THREE.SphereGeometry(1, 40, 20);
@@ -39,6 +41,7 @@ export class Bodies {
   }
 
   setCenter(v) { this.center.copy(v); }
+  configure({ coreMass, coreSoft, sizeMul, escape }) { Object.assign(this, { coreMass, coreSoft, sizeMul, escape }); }
 
   add(type, pos, vel, mass, kind, opts = {}) {
     if (this.list.length >= MAX) this.remove(this.list.find((b) => b.type === 'planet') || this.list[0]);
@@ -81,7 +84,7 @@ export class Bodies {
   }
 
   _resize(b) {
-    const r = radiusOf(b); b.radius = r;
+    const r = radiusOf(b) * this.sizeMul; b.radius = r;
     b.core.scale.setScalar(r);
     if (b.look) b.look.scaleExtras(r);
     if (b.disk) b.disk.scale.setScalar(r * 3.0);
@@ -92,11 +95,11 @@ export class Bodies {
   orbitVelocity(pos, viewDir) {
     let best = null, bestA = 0;
     for (const b of this.list) { if (b.type === 'planet') continue; const r = b.pos.distanceTo(pos); const a = b.mass / (r * r + 0.01); if (a > bestA) { bestA = a; best = b; } }
-    const cr = pos.distanceTo(this.center); const coreA = CORE_MASS / (cr * cr + 1.2);
-    const anchor = best && bestA > coreA ? best : { pos: this.center, vel: new THREE.Vector3(), mass: CORE_MASS };
+    const cr = pos.distanceTo(this.center); const coreA = this.coreMass / (cr * cr + this.coreSoft);
+    const anchor = best && bestA > coreA ? best : { pos: this.center, vel: new THREE.Vector3(), mass: this.coreMass, core: true };
     const d = pos.clone().sub(anchor.pos); const r = Math.max(0.05, d.length());
     const t = new THREE.Vector3().crossVectors(d, viewDir).normalize();
-    const eff = anchor.mass === CORE_MASS && anchor.pos === this.center ? CORE_MASS * r * r / Math.pow(r * r + 1.2, 1.5) * r : anchor.mass; // matches the softened core
+    const eff = anchor.core ? this.coreMass * r * r * r / Math.pow(r * r + this.coreSoft, 1.5) : anchor.mass; // matches the softened core
     return t.multiplyScalar(Math.sqrt(G * eff / r)).add(anchor.vel);
   }
 
@@ -111,8 +114,8 @@ export class Bodies {
     for (let s = 0; s < sub; s++) {
       for (const a of L) {
         const acc = new THREE.Vector3();
-        const dc = this.center.clone().sub(a.pos); const rc2 = dc.lengthSq() + 1.2; // soft core: weak tidal pull, so star systems stay intact
-        acc.addScaledVector(dc, G * CORE_MASS / (rc2 * Math.sqrt(rc2)));
+        const dc = this.center.clone().sub(a.pos); const rc2 = dc.lengthSq() + this.coreSoft; // soft core: weak tidal pull, so star systems stay intact
+        acc.addScaledVector(dc, G * this.coreMass / (rc2 * Math.sqrt(rc2)));
         for (const b of L) { if (a === b) continue; const d = b.pos.clone().sub(a.pos); const r2 = d.lengthSq() + SOFT; acc.addScaledVector(d, G * b.mass / (r2 * Math.sqrt(r2))); }
         a.vel.addScaledVector(acc.clampLength(0, 60), h);
       }
@@ -130,7 +133,7 @@ export class Bodies {
       }
     }
     // escapees far from the galaxy are let go
-    for (const b of [...L]) if (b.pos.distanceTo(this.center) > 16) this.remove(b);
+    for (const b of [...L]) if (b.pos.distanceTo(this.center) > this.escape) this.remove(b);
     // sync meshes, trails, GPU mirror
     this.frame++;
     const ta = this.trailAttr.array, tc = this.trailCol.array; ta.fill(0);

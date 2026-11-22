@@ -2,15 +2,17 @@
 
 A universe in your hands. Fly through a cosmic web of 110 procedural galaxies, dive into any of them (240,000 GPU particles each), and create stars, planets, black holes and nebulae with real gravity, controlled live by webcam hand tracking (MediaPipe) or the mouse. Built on three.js WebGPU.
 
-## Universe
-- **Mouse:** drag to turn, scroll to zoom, click a galaxy to fly in. `Esc` / scroll out to return.
-- **Hands:** open palm turns the sky, two palms spread to zoom, point at a galaxy and hold to fly in. Hold both palms still inside a galaxy to zoom back out.
-- `?seed=42` generates a different universe.
+## The journey
+One continuous trip with a breadcrumb at the top and a panel saying what you can do at each level:
 
-## Create (`C`)
-- **Hands:** pinch & release = planet (auto-orbits), pinch & hold = star (bigger the longer), two fists together = black hole, point = paint nebula, fist → open next to a star = supernova.
-- **Mouse:** `1` star (hold), `2` planet (click to orbit, drag to fling), `3` black hole, `4` nebula (drag), `5` supernova (click a star).
-- Bodies attract each other and the galaxy's stars; black holes swallow stars and merge with what they catch; massive supernovae collapse into black holes.
+1. **Universe**: 110 procedural galaxies on the cosmic web. Drag/scroll, or open palm / two palms; click or point-and-hold a galaxy to fly in.
+2. **Galaxy**: 240k-particle galaxy you can play with (sweep, pinch, fist→open, two-hand Big Bang), plus glowing star systems. Aether Prime contains **Sol**.
+3. **Star system**: our real **Solar System** (NASA-based textures: Sun, 8 planets, Moon, Saturn's rings, Milky Way sky, real tilts, Kepler orbits) or a procedural exoplanet system built from the same real surfaces. **✦ Create** (C) lives here: launch planets into orbit, add stars, black holes, nebulae.
+4. **Close-up**: click or point-and-hold any planet, moon or the Sun.
+
+Esc, scrolling out, holding both palms still, or the breadcrumb takes you back up. `?seed=42` generates a different universe.
+
+Textures: [Solar System Scope](https://www.solarsystemscope.com/textures/) (CC BY 4.0), see `public/textures/CREDITS.md`.
 
 ## Play gestures
 - **Sweep**: blow the stars

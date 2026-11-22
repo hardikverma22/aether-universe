@@ -52,6 +52,16 @@ export function makeUniverse({ seed = 7, galaxies: N = 110, dust = 150000 } = {}
     });
   }
   list[0].name = 'Aether Prime';
+  // every galaxy holds a few visitable star systems, placed in its disc (galaxy frame); Aether Prime holds Sol
+  const SYS = ['Kep', 'Tra', 'Gli', 'Wol', 'Ros', 'Lal', 'Hel', 'Ara', 'Vel', 'Ori', 'Zeta', 'Nyx'];
+  list.forEach((g) => {
+    const n = 3 + Math.floor(rnd() * 3); g.systems = [];
+    for (let i = 0; i < n; i++) {
+      const r = 0.9 + rnd() * 1.6, a = rnd() * Math.PI * 2;
+      g.systems.push({ name: SYS[Math.floor(rnd() * SYS.length)] + 'ler-' + (10 + Math.floor(rnd() * 990)), local: new THREE.Vector3(Math.cos(a) * r * g.size, (rnd() - 0.5) * 0.08, Math.sin(a) * r * g.size), seed: Math.floor(rnd() * 1e9) });
+    }
+  });
+  list[0].systems[0] = { name: 'Sol', real: true, local: new THREE.Vector3(1.7, 0.02, 0.6), seed: 1 };
 
   const group = new THREE.Group();
 
