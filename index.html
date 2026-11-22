@@ -14,7 +14,7 @@
   <section id="intro">
     <p class="eyebrow">A WebGPU experiment</p>
     <h1 id="title">Aether</h1>
-    <p class="lede">Two hundred thousand stars, and your hands.</p>
+    <p class="lede">A universe of galaxies, and your hands.</p>
     <div class="cta">
       <button id="btnCam" class="primary">Use my hands</button>
       <button id="btnMouse">Use the mouse</button>
@@ -23,14 +23,11 @@
   </section>
 
   <div id="hud" hidden>
-    <ul id="guide">
-      <li><b>Sweep</b> to blow</li>
-      <li><b>Pinch</b> to gather</li>
-      <li><b>Point</b> to draw a comet</li>
-      <li><b>Fist → open</b> to explode</li>
-      <li><b>Both hands together</b>, then pull apart</li>
-    </ul>
-    <div id="tools"><button id="btnFeed" title="Show or hide yourself (V)">You</button><button id="btnRec" title="Record a 9:16 clip (R)">● Record</button></div>
+    <ul id="guide"></ul>
+    <div id="tools"><button id="btnUniverse" title="Zoom out to the universe (Esc)">Universe</button><button id="btnFeed" title="Show or hide yourself (V)">You</button><button id="btnRec" title="Record a 9:16 clip (R)">● Record</button></div>
+    <div id="label" hidden></div>
+    <div id="toast"></div>
+    <div id="exitRing"></div>
     <div id="status"></div>
   </div>
   <video id="video" playsinline muted hidden></video>

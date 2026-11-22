@@ -18,6 +18,10 @@ export function makeGalaxy({ count }) {
     joints: uniformArray(Array.from({ length: 42 }, () => new THREE.Vector3(0, 0, 99)), 'vec3'),
     // two-hand Big Bang: implode toward a point, then explode
     bangPos: uniform(new THREE.Vector3()), implode: uniform(0), explode: uniform(0),
+    // per-galaxy identity: where it sits in the universe, how it's oriented, its shape and palette
+    center: uniform(new THREE.Vector3()), orient: uniform(new THREE.Matrix3()), fade: uniform(1),
+    shape: uniform(0), arms: uniform(3), twist: uniform(1.75), size: uniform(1),
+    c0: uniform(new THREE.Color(1.0, 0.82, 0.58)), c1: uniform(new THREE.Color(0.86, 0.42, 0.95)), c2: uniform(new THREE.Color(0.32, 0.52, 1.0)),
   };
 
   // ---------- init: a 3-arm spiral galaxy + a soft halo ----------
@@ -26,16 +30,29 @@ export function makeGalaxy({ count }) {
     const h1 = hash(id.mul(0.1031)), h2 = hash(id.mul(0.1030).add(7.1)), h3 = hash(id.mul(0.0973).add(3.3)), h4 = hash(id.mul(0.1099).add(1.7));
     const isHalo = hash(id.mul(0.31).add(9.9)).lessThan(0.12);
     const r = pow(h1, 0.7).mul(2.7).add(0.04);
-    const arm = h2.mul(3).floor();
-    const ang = arm.mul(PI2.div(3)).add(r.mul(1.75)).add(h3.sub(0.5).mul(0.55).div(r.mul(0.6).add(0.4)));
+    // spiral arms (shape 0), barred spiral (1): arms start at the ends of a central bar
+    const isBar = u.shape.equal(1).and(r.lessThan(0.9));
+    const arm = h2.mul(u.arms).floor();
+    const ang = arm.mul(PI2.div(u.arms)).add(r.mul(u.twist)).add(h3.sub(0.5).mul(0.55).div(r.mul(0.6).add(0.4)));
     const scatter = h4.sub(0.5).mul(r.mul(0.22).add(0.05));
-    const disc = vec3(cos(ang).mul(r).add(scatter), h3.sub(0.5).mul(0.16).mul(exp(r.negate().mul(0.8))).add(h4.sub(0.5).mul(0.03)), sin(ang).mul(r).add(scatter.mul(0.7)));
+    const thick = h3.sub(0.5).mul(0.16).mul(exp(r.negate().mul(0.8))).add(h4.sub(0.5).mul(0.03));
+    const spiral = vec3(cos(ang).mul(r).add(scatter), thick, sin(ang).mul(r).add(scatter.mul(0.7)));
+    const bar = vec3(h1.sub(0.5).mul(1.9), thick, h4.sub(0.5).mul(0.28));
+    // elliptical (2): a soft 3-D ellipsoid
+    const er = pow(h1, 1.6).mul(2.4).add(0.03); const eth = h2.mul(PI2), eph = h3.mul(2).sub(1).acos();
+    const ellip = vec3(sin(eph).mul(cos(eth)), cos(eph).mul(0.62), sin(eph).mul(sin(eth)).mul(0.85)).mul(er);
+    // ring (3): a bright core plus a wide ring
+    const inRing = h4.greaterThan(0.25);
+    const rr0 = select(inRing, float(2.0).add(h3.sub(0.5).mul(0.55)), pow(h1, 2.0).mul(0.6));
+    const ring = vec3(cos(h2.mul(PI2)).mul(rr0), thick.mul(0.6), sin(h2.mul(PI2)).mul(rr0));
+    const disc = select(u.shape.equal(2), ellip, select(u.shape.equal(3), ring, select(isBar, bar, spiral)));
+    const rad01 = select(u.shape.equal(2), er.div(2.4), select(u.shape.equal(3), rr0.div(2.3), r.div(2.7)));
     // halo: points on a fuzzy sphere
     const th = h2.mul(PI2), ph = h3.mul(2).sub(1).acos(), rr = pow(h1, 0.5).mul(3.2).add(0.6);
     const halo = vec3(sin(ph).mul(cos(th)), cos(ph).mul(0.6), sin(ph).mul(sin(th))).mul(rr);
-    const p = select(isHalo, halo, disc);
-    home.element(instanceIndex).assign(vec4(p, select(isHalo, float(1.2), r.div(2.7))));
-    pos.element(instanceIndex).assign(vec4(p.mul(4.0).add(vec3(0, 0, 0)), hash(id.mul(0.77))));
+    const p = select(isHalo, halo, disc).mul(u.size);
+    home.element(instanceIndex).assign(vec4(p, select(isHalo, float(1.2), rad01)));
+    pos.element(instanceIndex).assign(vec4(u.center.add(u.orient.mul(p.mul(3.0))), hash(id.mul(0.77))));
     vel.element(instanceIndex).assign(vec4(0));
   })().compute(count);
 
@@ -43,8 +60,7 @@ export function makeGalaxy({ count }) {
   const toWorld = (p, r) => {
     const a = u.time.mul(u.spin).mul(0.16).div(r.mul(1.2).add(0.35));
     const ry = vec3(p.x.mul(cos(a)).sub(p.z.mul(sin(a))), p.y, p.x.mul(sin(a)).add(p.z.mul(cos(a))));
-    const c = cos(u.tilt), s = sin(u.tilt);
-    return vec3(ry.x, ry.y.mul(c).sub(ry.z.mul(s)), ry.y.mul(s).add(ry.z.mul(c)));
+    return u.center.add(u.orient.mul(ry));
   };
 
   // ---------- update ----------
@@ -96,12 +112,12 @@ export function makeGalaxy({ count }) {
   const P = pos.toAttribute(), V = vel.toAttribute(), Hm = home.toAttribute();
   mat.positionNode = P.xyz;
   const rad = Hm.w, heat = V.w;
-  const core = vec3(1.0, 0.82, 0.58), mid = vec3(0.86, 0.42, 0.95), outer = vec3(0.32, 0.52, 1.0), hot = vec3(1.0, 0.62, 0.28);
+  const core = vec3(u.c0), mid = vec3(u.c1), outer = vec3(u.c2), hot = vec3(1.0, 0.62, 0.28);
   const base = mix(mix(core, mid, smoothstep(0.0, 0.45, rad)), outer, smoothstep(0.4, 1.0, rad));
   const col = mix(base, hot, smoothstep(0.15, 1.1, heat)).mul(P.w.mul(0.7).add(0.5)).mul(heat.mul(0.9).add(1));
   mat.colorNode = vec4(col, 1);
   const soft = smoothstep(0.5, 0.0, length(uv().sub(0.5)));
-  mat.opacityNode = soft.mul(u.alpha).mul(select(rad.greaterThan(1.1), float(0.35), float(1)));
+  mat.opacityNode = soft.mul(u.alpha).mul(u.fade).mul(select(rad.greaterThan(1.1), float(0.35), float(1)));
   mat.scaleNode = float(0.013).mul(P.w.mul(0.8).add(0.5)).mul(heat.mul(0.5).add(1));
   const sprite = new THREE.Sprite(mat);
   sprite.count = count; sprite.frustumCulled = false;

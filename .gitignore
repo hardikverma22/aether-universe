@@ -5,3 +5,4 @@ public/mediapipe-wasm/
 *.log
 .env*
 !.env.example
+.claude/
