@@ -28,6 +28,7 @@ function makeHand() {
   return {
     active: 0, pos: new THREE.Vector3(), vel: new THREE.Vector3(), pinch: 0, fist: 0, open: 0, point: 0, burst: 0,
     lm: null, screen: null, world: Array.from({ length: 21 }, () => new THREE.Vector3(0, 0, 99)),
+    draw: null, sVel: Array.from({ length: 21 }, () => ({ x: 0, y: 0 })), // smoothed + predicted landmarks for drawing
     target: new THREE.Vector3(), mvel: new THREE.Vector3(), tResult: 0, _fistT: -1e9, _burstT: -1e9,
     f: [new OneEuro(), new OneEuro(), new OneEuro(0.8, 0.4)],
     lat: { pinch: new Latch(0.7, 0.4), fist: new Latch(0.72, 0.45), point: new Latch(0.7, 0.4) },
@@ -127,7 +128,10 @@ export class Hands {
     else { h.mvel.lerp(target.clone().sub(h.target).divideScalar(Math.max((now - h.tResult) / 1000, 1 / 120)).clampLength(0, 25), 0.6); h.target.copy(target); }
     h.tResult = now;
     // all landmarks -> screen + world (overlay + whole-hand colliders)
-    h.screen = mir.map((p) => videoToScreen(p.x, p.y));
+    const ns = mir.map((p) => videoToScreen(p.x, p.y));
+    if (h.screen && wasActive) ns.forEach((p, i) => { const v = h.sVel[i]; v.x += ((p.x - h.screen[i].x) / dt - v.x) * 0.5; v.y += ((p.y - h.screen[i].y) / dt - v.y) * 0.5; });
+    else h.sVel.forEach((v) => { v.x = 0; v.y = 0; });
+    h.screen = ns; if (!h.draw || !wasActive) h.draw = ns.map((p) => ({ ...p }));
     h.screen.forEach((s, i) => { const w = toWorld(s.x, s.y, fd - mir[i].z * 4); if (wasActive) h.world[i].lerp(w, 0.7); else h.world[i].copy(w); });
     if (h.active <= 0.05) h.since = performance.now(); // when this hand (re)appeared
     h.active = Math.min(1, h.active + dt * 6); h.lm = mir;
@@ -141,6 +145,11 @@ export class Hands {
       const age = Math.min((now - h.tResult) / 1000, 0.06);
       h.pos.lerp(h.target.clone().addScaledVector(h.mvel, age), 1 - Math.exp(-dt * 30));
       h.vel.lerp(h.mvel, 1 - Math.exp(-dt * 20));
+      // drawn skeleton: extrapolate each joint along its velocity, then glide toward it (smooth at 60 fps)
+      if (h.screen && h.draw) {
+        const k = 1 - Math.exp(-dt * 24);
+        for (let i = 0; i < 21; i++) { const p = h.screen[i], v = h.sVel[i], d = h.draw[i]; d.x += (p.x + v.x * age - d.x) * k; d.y += (p.y + v.y * age - d.y) * k; }
+      }
     }
   }
 

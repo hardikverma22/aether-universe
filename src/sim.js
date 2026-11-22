@@ -11,7 +11,7 @@ export function makeGalaxy({ count, bodies }) {
   const home = instancedArray(count, 'vec4'); // xyz in galaxy frame, w = radius 0..1
 
   const u = {
-    time: uniform(0), dt: uniform(1 / 60), tilt: uniform(1.08), spin: uniform(1), alpha: uniform(0.26), nearFade: uniform(new THREE.Vector2(0.25, 1.2)),
+    time: uniform(0), dt: uniform(1 / 60), tilt: uniform(1.08), spin: uniform(1), alpha: uniform(0.26), viewDir: uniform(new THREE.Vector3(0, 0, -1)), nearFade: uniform(new THREE.Vector2(0.25, 1.2)),
     hands: [0, 1].map(() => ({ pos: uniform(new THREE.Vector3()), vel: uniform(new THREE.Vector3()),
       active: uniform(0), pinch: uniform(0), fist: uniform(0), open: uniform(0), burst: uniform(0), point: uniform(0) })),
     // all 42 hand landmarks in world space (z = 99 when a hand is absent): stars flow around your fingers
@@ -72,11 +72,13 @@ export function makeGalaxy({ count, bodies }) {
     const force = vec3(0).toVar();
     for (const h of u.hands) {
       const d = h.pos.sub(p); const r2 = dot(d, d); const r = sqrt(r2).add(1e-3); const dn = d.div(r);
-      const near = exp(r2.div(0.55).negate());            // ~0.75 radius
-      const far = exp(r2.div(2.2).negate());              // ~1.5 radius
+      // falloff measured across the screen (ignore depth): the hand affects every star it passes over, front or back of the disc
+      const dP = d.sub(u.viewDir.mul(dot(d, u.viewDir))); const s2 = dot(dP, dP);
+      const near = exp(s2.div(1.3).negate());             // ~1.1 radius on screen
+      const far = exp(s2.div(2.6).negate());              // ~1.6 radius
       const grab = h.pinch.add(h.fist.mul(1.3)).mul(h.active);
       grabAll.assign(max(grabAll, grab.mul(far)));
-      force.addAssign(h.vel.mul(near).mul(3.4).mul(h.active));                                  // wind from a sweeping hand
+      force.addAssign(h.vel.mul(near).mul(4.8).mul(h.active));                                  // wind from a sweeping hand
       force.addAssign(cross(dn, vec3(0, 0, 1)).mul(near).mul(1.1).mul(h.active));               // gentle vortex around the hand
       force.addAssign(dn.mul(grab).mul(far).mul(19).mul(smoothstep(0.04, 0.32, r)));            // gather into a knot
       force.addAssign(cross(dn, normalize(vec3(0.3, 1, 0.2))).mul(grab).mul(far).mul(5));       // ...that swirls

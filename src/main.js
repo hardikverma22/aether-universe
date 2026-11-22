@@ -340,7 +340,7 @@ function handNavigation(dt) {
   if (hands.mode !== 'camera' || !started) return;
   const act = hands.hands.filter((h) => h.active > 0.7);
   const pointer = act.find((h) => h.point > 0.6 && h.screen);
-  const tip = pointer ? { x: pointer.screen[8].x * innerWidth, y: pointer.screen[8].y * innerHeight } : null;
+  const tp = pointer ? (pointer.draw || pointer.screen)[8] : null; const tip = tp ? { x: tp.x * innerWidth, y: tp.y * innerHeight } : null;
   // point at something and hold for a second to go into it
   const target = !tip ? null : mode === 'universe' ? pickGalaxy(tip.x, tip.y, 40) : mode === 'galaxy' ? pickMarker(tip.x, tip.y, 80) : mode === 'system' && !createMode ? pickWorld(tip.x, tip.y, 40) : null;
   handNavigation.tip = tip; handNavigation.target = target;
@@ -370,7 +370,7 @@ function drawOverlay() {
   for (const h of hands.hands) {
     if (h.active < 0.02) continue;
     if (hands.mode === 'camera' && h.screen) {
-      const P = h.screen.map((p) => [p.x * innerWidth, p.y * innerHeight]);
+      const P = (h.draw || h.screen).map((p) => [p.x * innerWidth, p.y * innerHeight]);
       ctx.lineCap = 'round'; ctx.strokeStyle = `rgba(170,190,255,${0.22 * h.active})`; ctx.lineWidth = 1.2; ctx.shadowColor = 'rgba(140,170,255,0.9)'; ctx.shadowBlur = 12;
       ctx.beginPath(); for (const [a, b] of CONNECTIONS) { ctx.moveTo(...P[a]); ctx.lineTo(...P[b]); } ctx.stroke();
       ctx.fillStyle = `rgba(230,236,255,${0.55 * h.active})`;
@@ -618,7 +618,7 @@ renderer.setAnimationLoop((now) => {
   handNavigation(dt);
   updateFocus(dt);
   rig.update(dt);
-  const u = galaxy.u; u.time.value = now / 1000; u.dt.value = dt;
+  const u = galaxy.u; u.time.value = now / 1000; u.dt.value = dt; camera.getWorldDirection(u.viewDir.value);
   const live = mode === 'galaxy';
   hands.hands.forEach((h, i) => {
     const t = u.hands[i];
