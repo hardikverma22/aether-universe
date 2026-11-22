@@ -80,7 +80,7 @@ addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; cam
 
 // ================================================================ state
 // level: 'universe' | 'galaxy' | 'system'; focus = a planet/moon/star close-up inside a system
-let mode = 'galaxy', current = universe.list[0], currentSystem = null, focus = null;
+let mode = 'galaxy', current = universe.list[0], currentSystem = null, focus = null, started = false;
 const GALAXY_R = 8.5, SYSTEM_R = 24, OVERVIEW_R = 640;
 
 const viewDir = (g) => { const n = new THREE.Vector3(0, 1, 0).applyQuaternion(g.quat), p = new THREE.Vector3(0, 0, 1).applyQuaternion(g.quat); return n.multiplyScalar(0.88).add(p.multiplyScalar(0.47)).normalize(); };
@@ -129,27 +129,27 @@ const toScreen = (v) => { const s = v.clone().project(camera); return { x: (s.x 
 const camFwd = () => camera.getWorldDirection(new THREE.Vector3());
 
 // ================================================================ picking
-function pickGalaxy(px, py) {
+function pickGalaxy(px, py, extra = 0) {
   let best = null, bestD = 1e9;
   for (const g of universe.list) {
     const s = toScreen(g.pos); if (!s.front) continue;
-    const radPx = Math.max(14, (3.6 * g.size / camera.position.distanceTo(g.pos)) * innerHeight * 1.2);
+    const radPx = Math.max(14 + extra, (3.6 * g.size / camera.position.distanceTo(g.pos)) * innerHeight * 1.2);
     const d = Math.hypot(s.x - px, s.y - py); if (d < radPx && d < bestD) { best = g; bestD = d; }
   }
   return best;
 }
-function pickMarker(px, py) {
-  let best = null, bd = 34;
+function pickMarker(px, py, radius = 34) {
+  let best = null, bd = radius;
   for (const m of markers.children) { const s = toScreen(m.position); if (!s.front) continue; const d = Math.hypot(s.x - px, s.y - py); if (d < bd) { bd = d; best = m.userData.sys; } }
   return best;
 }
 const sunObj = { name: 'sun', isSun: true, pos: new THREE.Vector3(), radius: 1 };
-function pickWorld(px, py) { // planets, moons, the sun, and anything you created
+function pickWorld(px, py, extra = 0) { // planets, moons, the sun, and anything you created
   const cands = [...systemView.visitables, ...bodies.list, { ...sunObj, radius: currentSystem?.star.radius || 1 }];
   let best = null, bd = 1e9;
   for (const b of cands) {
     const s = toScreen(b.pos); if (!s.front) continue;
-    const rpx = Math.max(16, (b.radius / camera.position.distanceTo(b.pos)) * innerHeight * 1.2);
+    const rpx = Math.max(16 + extra, (b.radius / camera.position.distanceTo(b.pos)) * innerHeight * 1.2);
     const d = Math.hypot(s.x - px, s.y - py); if (d < rpx && d < bd) { bd = d; best = b; }
   }
   return best;
@@ -337,13 +337,14 @@ function selectTool(t) { tool = t; document.querySelectorAll('#tools2 [data-tool
 // ================================================================ hands: navigation per level
 let hover = null, dwell = 0, stillPalms = 0;
 function handNavigation(dt) {
-  if (hands.mode !== 'camera') return;
+  if (hands.mode !== 'camera' || !started) return;
   const act = hands.hands.filter((h) => h.active > 0.7);
   const pointer = act.find((h) => h.point > 0.6 && h.screen);
   const tip = pointer ? { x: pointer.screen[8].x * innerWidth, y: pointer.screen[8].y * innerHeight } : null;
   // point at something and hold for a second to go into it
-  const target = !tip ? null : mode === 'universe' ? pickGalaxy(tip.x, tip.y) : mode === 'galaxy' ? pickMarker(tip.x, tip.y) : mode === 'system' && !createMode ? pickWorld(tip.x, tip.y) : null;
-  if (target && target === hover) { dwell += dt; if (dwell >= 1) { dwell = 0; if (mode === 'universe') enterGalaxy(target); else if (mode === 'galaxy') enterSystem(target); else if (focus !== target) focusOn(target); } }
+  const target = !tip ? null : mode === 'universe' ? pickGalaxy(tip.x, tip.y, 40) : mode === 'galaxy' ? pickMarker(tip.x, tip.y, 80) : mode === 'system' && !createMode ? pickWorld(tip.x, tip.y, 40) : null;
+  handNavigation.tip = tip; handNavigation.target = target;
+  if (target && target === hover) { dwell += dt / 1.2; if (dwell >= 1) { dwell = 0; if (mode === 'universe') enterGalaxy(target); else if (mode === 'galaxy') enterSystem(target); else if (focus !== target) focusOn(target); } }
   else if (tip) { hover = target; dwell = 0; } else dwell = Math.max(0, dwell - dt * 2);
   if (mode === 'universe' || (mode === 'system' && !createMode)) {
     const palm = act.find((h) => h.open > 0.6 && h.point < 0.3);
@@ -375,7 +376,7 @@ function drawOverlay() {
       ctx.fillStyle = `rgba(230,236,255,${0.55 * h.active})`;
       for (const i of [4, 8, 12, 16, 20]) { ctx.beginPath(); ctx.arc(...P[i], 2.2, 0, 7); ctx.fill(); }
       const g = h.point > 0.6 ? '👉 Point' : h.lat.pinch.on ? '🤏 Pinch' : h.lat.fist.on ? '✊ Fist' : h.open > 0.6 ? '✋ Open' : '· Relaxed';
-      const top = Math.min(...P.map((p) => p[1])), cx = P.reduce((a, p) => a + p[0], 0) / 21;
+      const top = P[0][1] + 66, cx = P[0][0]; // label sits below the wrist, never on the fingertip
       ctx.save(); ctx.globalCompositeOperation = 'source-over'; ctx.shadowBlur = 0;
       ctx.font = '600 14px ui-sans-serif, -apple-system, sans-serif'; const w = ctx.measureText(g).width + 20;
       ctx.fillStyle = 'rgba(10,10,24,0.72)'; ctx.beginPath(); ctx.roundRect(cx - w / 2, top - 40, w, 26, 13); ctx.fill();
@@ -383,7 +384,8 @@ function drawOverlay() {
       ctx.restore();
     }
     if (mode !== 'galaxy') continue;
-    const s = toScreen(h.pos); const g = Math.max(h.pinch, h.fist, h.point * 0.7), r = 16 + g * 26 + h.burst * 90;
+    if (h.point > 0.6) continue; // pointing shows the reticle instead
+    const s = toScreen(h.pos); const g = Math.max(h.pinch, h.fist), r = 16 + g * 26 + h.burst * 90;
     const grd = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, r);
     grd.addColorStop(0, `rgba(255,214,170,${(0.08 + g * 0.32 + h.burst * 0.5) * h.active})`); grd.addColorStop(1, 'rgba(255,180,120,0)');
     ctx.shadowBlur = 0; ctx.fillStyle = grd; ctx.beginPath(); ctx.arc(s.x, s.y, r, 0, 7); ctx.fill();
@@ -393,6 +395,19 @@ function drawOverlay() {
     if (p.hole) { grd.addColorStop(0, 'rgba(0,0,0,0.9)'); grd.addColorStop(0.6, 'rgba(160,90,255,0.35)'); grd.addColorStop(1, 'rgba(160,90,255,0)'); }
     else { grd.addColorStop(0, 'rgba(255,240,210,0.95)'); grd.addColorStop(0.35, 'rgba(255,190,120,0.45)'); grd.addColorStop(1, 'rgba(255,160,90,0)'); }
     ctx.globalCompositeOperation = p.hole ? 'source-over' : 'lighter'; ctx.fillStyle = grd; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 7); ctx.fill();
+  }
+  // pointing: a reticle on the fingertip that fills while you hold it on something
+  const T = handNavigation.tip;
+  if (started && T && mode !== 'flying') {
+    const tgt = handNavigation.target;
+    ctx.globalCompositeOperation = 'source-over'; ctx.shadowBlur = 0;
+    ctx.strokeStyle = tgt ? 'rgba(255,214,170,0.95)' : 'rgba(220,228,255,0.7)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(T.x, T.y, 20, 0, 7); ctx.stroke();
+    ctx.beginPath(); for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { ctx.moveTo(T.x + dx * 26, T.y + dy * 26); ctx.lineTo(T.x + dx * 34, T.y + dy * 34); } ctx.stroke();
+    if (tgt && dwell > 0) { ctx.strokeStyle = 'rgba(255,214,170,1)'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(T.x, T.y, 20, -Math.PI / 2, -Math.PI / 2 + Math.min(1, dwell) * Math.PI * 2); ctx.stroke(); }
+    ctx.font = '500 12px ui-sans-serif, -apple-system, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(232,236,255,0.85)';
+    const hint = tgt ? 'hold to open' : mode === 'universe' ? 'point at a galaxy' : mode === 'galaxy' ? 'point at a glowing star system' : createMode ? '' : 'point at a planet';
+    if (hint) ctx.fillText(hint, T.x, T.y + 52);
   }
   // hover target: ring + dwell progress + label
   ctx.globalCompositeOperation = 'source-over'; ctx.shadowBlur = 0;
@@ -404,12 +419,12 @@ function drawOverlay() {
     if (dwell > 0) { ctx.strokeStyle = 'rgba(255,214,170,0.95)'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(s.x, s.y, 26, -Math.PI / 2, -Math.PI / 2 + dwell * Math.PI * 2); ctx.stroke(); }
     label.hidden = false; label.style.transform = `translate(${s.x + 34}px, ${s.y - 14}px)`;
     const [title, sub] = mode === 'universe' ? [h.name, `${SHAPES[h.shape]} · ${h.systems.length} star systems`]
-      : mode === 'galaxy' ? [h.real ? 'Sol' : h.name, h.real ? 'Our Solar System — click to visit' : 'Star system — click to visit']
+      : mode === 'galaxy' ? [h.real ? 'Sol' : h.name, (h.real ? 'Our Solar System' : 'Star system') + (hands.mode === 'camera' ? ' — point & hold to visit' : ' — click to visit')]
       : describe(h);
     label.innerHTML = `<b>${title}</b><span>${sub}</span>`;
   } else label.hidden = true;
   // always label Sol in Aether Prime so the way in is obvious
-  if (mode === 'galaxy' && current.id === 0 && !h) {
+  if (started && mode === 'galaxy' && current.id === 0 && !h) {
     const solM = markers.children.find((m) => m.userData.sys.real);
     if (solM) { const s = toScreen(solM.position); if (s.front) { ctx.font = '500 13px ui-sans-serif, -apple-system, sans-serif'; ctx.fillStyle = 'rgba(255,230,190,0.9)'; ctx.textAlign = 'left'; ctx.fillText('Sol · our Solar System', s.x + 18, s.y + 4); } }
   }
@@ -418,17 +433,20 @@ function drawOverlay() {
 // ================================================================ mouse + keys
 const glc = $('gl'); let drag = null;
 glc.addEventListener('pointerdown', (e) => {
+  if (!started) return;
   if (mode === 'system' && createMode) return mouseCreateDown(e);
   if (mode === 'universe' || mode === 'system') drag = { x: e.clientX, y: e.clientY, moved: 0 };
   if (mode === 'galaxy') drag = { x: e.clientX, y: e.clientY, moved: 0, click: true };
 });
 addEventListener('pointermove', (e) => {
+  if (!started) return;
   if (mode === 'system' && createMode) mouseCreateMove(e);
   if (drag && (mode === 'universe' || mode === 'system') && !createMode) { const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.moved += Math.abs(dx) + Math.abs(dy); rig.orbit(-dx * 0.004, -dy * 0.004); drag.x = e.clientX; drag.y = e.clientY; }
   else if (drag) drag.moved += Math.abs(e.clientX - drag.x) + Math.abs(e.clientY - drag.y);
   mouseHover = mode === 'universe' ? pickGalaxy(e.clientX, e.clientY) : mode === 'galaxy' ? pickMarker(e.clientX, e.clientY) : mode === 'system' ? pickWorld(e.clientX, e.clientY) : null;
 });
 addEventListener('pointerup', (e) => {
+  if (!started) return;
   if (mode === 'system' && createMode) mouseCreateUp(e);
   if (drag && drag.moved < 6) {
     if (mode === 'universe') { const g = pickGalaxy(e.clientX, e.clientY); if (g) enterGalaxy(g); }
@@ -438,11 +456,12 @@ addEventListener('pointerup', (e) => {
   drag = null;
 });
 glc.addEventListener('wheel', (e) => {
-  e.preventDefault(); rig.zoom(Math.exp(e.deltaY * 0.0012));
+  e.preventDefault(); if (!started) return; rig.zoom(Math.exp(e.deltaY * 0.0012));
   if (e.deltaY > 0 && rig.goal.radius >= rig.max - 0.5) goUp();
   if (e.deltaY > 0 && focus && rig.goal.radius > focus.radius * 22) unfocus();
 }, { passive: false });
 addEventListener('keydown', (e) => {
+  if (!started) return;
   if (e.key === 'Escape') goUp();
   if (e.key === 'c' && mode === 'system') setCreate(!createMode);
   if (createMode && '1234'.includes(e.key)) selectTool(['planet', 'star', 'hole', 'nebula'][+e.key - 1]);
@@ -563,7 +582,7 @@ async function start(m) {
   document.querySelectorAll('.cta button').forEach((b) => (b.disabled = true));
   try { if (m === 'camera') { status.textContent = 'Waking the stars…'; await hands.initCamera(); updateCover(); } else hands.initMouse(glc); }
   catch (e) { console.warn(e); hands.initMouse(glc); banner('Camera unavailable — using the mouse. Allow camera access, then click 🖱 Mouse to switch.'); }
-  setLook('galaxy', 2.2);
+  setLook('galaxy', 2.2); started = true;
   gsap.to('#intro', { opacity: 0, duration: 1.2, ease: 'power2.inOut', onComplete: () => ($('intro').hidden = true) });
   $('hud').hidden = false; status.textContent = ''; updateInputButton(); refreshHUD();
   gsap.from('#panel, #tools, #crumbs', { y: 12, opacity: 0, duration: 1, delay: 0.6 });
@@ -604,7 +623,7 @@ renderer.setAnimationLoop((now) => {
   hands.hands.forEach((h, i) => {
     const t = u.hands[i];
     t.pos.value.copy(h.pos); t.vel.value.copy(h.vel).clampLength(0, 14);
-    t.active.value = live ? h.active : 0; t.pinch.value = h.pinch; t.fist.value = h.fist; t.open.value = h.open; t.burst.value = live ? h.burst : 0; t.point.value = h.point;
+    t.active.value = live ? h.active : 0; t.pinch.value = h.pinch; t.fist.value = h.fist; t.open.value = h.open; t.burst.value = live ? h.burst : 0; t.point.value = 0; // pointing selects, it never pushes stars
     for (let j = 0; j < 21; j++) u.joints.array[i * 21 + j].copy(live && h.active > 0.3 && hands.mode === 'camera' ? h.world[j] : FAR);
   });
   handCreate(dt, now);

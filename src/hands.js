@@ -102,10 +102,12 @@ export class Hands {
     const size = dist(mir[0], mir[9]) + 1e-4;
     const ext = (tip) => dist(mir[tip], mir[0]) / size;              // finger extension
     const tips = (ext(8) + ext(12) + ext(16) + ext(20)) / 4;
-    const fistRaw = 1 - ss(1.05, 1.5, tips);
-    const openRaw = ss(1.55, 1.95, tips);
-    const pinchRaw = (1 - ss(0.22, 0.5, dist(mir[4], mir[8]) / size)) * (1 - fistRaw);
-    const pointRaw = ss(1.7, 2.0, ext(8)) * (1 - ss(1.2, 1.5, (ext(12) + ext(16) + ext(20)) / 3)) * (1 - pinchRaw);
+    // pointing = index straight, the other three curled; it takes priority over fist and pinch
+    const others = (ext(12) + ext(16) + ext(20)) / 3;
+    const pointRaw = ss(1.65, 1.95, ext(8)) * (1 - ss(1.2, 1.5, others)) * ss(0.35, 0.6, dist(mir[4], mir[8]) / size);
+    const fistRaw = (1 - ss(1.05, 1.5, tips)) * (1 - ss(1.35, 1.65, ext(8))) * (1 - pointRaw);   // a fist needs the index curled too
+    const openRaw = ss(1.55, 1.95, tips) * (1 - pointRaw);
+    const pinchRaw = (1 - ss(0.22, 0.5, dist(mir[4], mir[8]) / size)) * (1 - fistRaw) * (1 - pointRaw);
     h.pinch = h.lat.pinch.update(pinchRaw); h.fist = h.lat.fist.update(fistRaw); h.point = h.lat.point.update(pointRaw);
     h.open += (openRaw - h.open) * 0.6;
     const now = performance.now();

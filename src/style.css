@@ -8,7 +8,7 @@ button { font: inherit; color: var(--ink); background: rgba(255,255,255,0.04); b
 button:hover { border-color: rgba(238,240,255,.45); }
 button.primary { background: var(--ink); color: #07071a; border-color: var(--ink); }
 button:focus-visible { outline: 2px solid #9fb4ff; outline-offset: 3px; }
-#intro { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 6vh 6vw; z-index: 4; pointer-events: none; }
+#intro { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 6vh 6vw; z-index: 4; pointer-events: auto; } /* the intro blocks the scene until you press start */
 #intro > * { pointer-events: auto; }
 .eyebrow { font-size: 12px; letter-spacing: .32em; text-transform: uppercase; color: var(--dim); margin: 0 0 1.4rem; }
 #title { font-family: var(--serif); font-weight: 400; font-size: clamp(72px, 14vw, 190px); line-height: .9; letter-spacing: -0.02em; margin: 0; text-shadow: 0 0 60px rgba(150,170,255,.35); }
