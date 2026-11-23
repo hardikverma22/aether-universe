@@ -34,7 +34,7 @@ export function makeStarLook(b) {
     const fine = mx_noise_float(p.mul(60).add(time.mul(0.2))).mul(0.5).add(0.5);
     // sunspots (dark umbra + penumbra) and bright faculae
     const big = mx_fractal_noise_float(p.mul(4.5).add(vec3(time.mul(0.01), 0, 0)), 4, 2.0, 0.5, 1.0);
-    const spot = smoothstep(0.56, 0.62, big).mul(0.45).add(smoothstep(0.62, 0.66, big).mul(0.4));   // penumbra + umbra
+    const spot = smoothstep(0.58, 0.64, big).mul(0.22).add(smoothstep(0.64, 0.68, big).mul(0.2));   // penumbra + umbra
     const fac = smoothstep(0.15, 0.4, big).mul(pow(float(1).sub(mu), 2)).mul(0.5);
     // limb darkening I(mu) = 1 - u(1 - mu), plus reddening toward the limb
     const limb = float(1).sub(float(0.62).mul(float(1).sub(mu)));
