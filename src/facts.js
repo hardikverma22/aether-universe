@@ -20,7 +20,7 @@ export const INFO = {
   Earth: {
     kind: 'Planet · 3rd from the Sun · home',
     stats: [['Diameter', '12,756 km'], ['Day', '24 hours'], ['Year', '365.25 days'], ['Temperature', '15 °C average'], ['Gravity', '9.8 m/s²'], ['Moons', '1']],
-    facts: ['The only world we know of with life and liquid water on its surface.', 'About 71% of the surface is covered by water.', 'The day and night on this globe match the real Earth right now.'],
+    facts: ['The only world we know of with life and liquid water on its surface.', 'About 71% of the surface is covered by water.', 'Set the clock to Live and the day and night on this globe match the real Earth at this moment.'],
   },
   Moon: {
     kind: 'Earth’s only natural satellite',
@@ -89,4 +89,55 @@ export function lightTime(au) {
   const s = au * 499.005; if (s < 60) return `${s.toFixed(1)} s`;
   const m = Math.floor(s / 60), r = Math.round(s % 60); if (m < 60) return `${m} min ${r} s`;
   return `${Math.floor(m / 60)} h ${m % 60} min`;
+}
+
+// ---------- info for everything else: imagined worlds in other star systems, and things you made
+const CLASS_COLOUR = { O: 'blue', B: 'blue-white', A: 'white', F: 'yellow-white', G: 'yellow', K: 'orange', M: 'red' };
+const CLASS_NOTE = {
+  O: 'The rarest and hottest kind of star. It burns out in a few million years.',
+  B: 'A hot, bright young star, thousands of times more luminous than the Sun.',
+  A: 'A white star like Sirius, the brightest star in our night sky.',
+  F: 'A little hotter and bigger than the Sun.',
+  G: 'The same kind of star as our Sun.',
+  K: 'An orange star, cooler than the Sun and long-lived: a good host for life.',
+  M: 'A red dwarf, the most common kind of star in the galaxy. It can shine for hundreds of billions of years, far longer than the universe has existed so far.',
+};
+const WORLD_NOTE = {
+  'Ocean world': 'A world covered by water, under a thick, bright sky.', 'Desert world': 'Dry and dusty, with sand seas and canyons.',
+  'Cloud world': 'Its surface is hidden under deep, hot clouds.', 'Rocky world': 'Bare rock, scarred by ancient impacts.',
+  'Cratered world': 'Old and airless: craters on top of craters.', 'Gas giant': 'A ball of hydrogen and helium with no solid surface.',
+  'Ringed giant': 'A gas giant with wide rings of ice and dust.', 'Ice giant': 'Water, ammonia and methane ices under a blue haze.',
+  'Lava world': 'So close to its star that its surface stays molten.',
+};
+const KIND_NAME = { terran: 'Ocean world', desert: 'Desert world', ice: 'Ice world', lava: 'Lava world', gas: 'Gas giant' };
+const ordinal = (n) => n + (['th', 'st', 'nd', 'rd'][(n % 100 - 20) % 10] || ['th', 'st', 'nd', 'rd'][n % 100] || 'th');
+const lifeGyr = (m) => 10 * Math.pow(m, -2.5);   // main-sequence lifetime, billions of years (mass in suns)
+const fmtLife = (g) => g >= 1000 ? `${Math.round(g / 1000)} trillion years` : g >= 1 ? `${g.toFixed(g < 10 ? 1 : 0)} billion years` : `${Math.round(g * 1000)} million years`;
+
+export function starInfo(temp, cls, _simMass, made) {
+  const mass = Math.pow(temp / 5778, 1.98);   // main-sequence mass from temperature (T ∝ M^0.505), so the numbers agree
+  return {
+    kind: `${CLASS_COLOUR[cls]} star · class ${cls}${made ? ' · you made this' : ' · imagined'}`,
+    stats: [['Temperature', `${Math.round(temp).toLocaleString()} K`], ['Class', cls], ['Mass', `${mass < 10 ? mass.toFixed(mass < 1 ? 2 : 1) : Math.round(mass)} Suns`], ['Lifetime', fmtLife(lifeGyr(mass))]],
+    facts: [CLASS_NOTE[cls], made ? 'Heavier stars are hotter and bluer, and burn out much faster.' : 'Every star system in this universe is generated: no one has ever seen this one.'],
+  };
+}
+export function worldInfo({ kind, made, index, system, orbitAU, earthRadii, massEarths, starTemp }) {
+  const name = made ? KIND_NAME[kind] || 'World' : kind;
+  const stats = [['Type', name], ['Size', `${earthRadii.toFixed(1)} × Earth`]];
+  if (massEarths) stats.push(['Mass', `${massEarths < 10 ? massEarths.toFixed(1) : Math.round(massEarths)} × Earth`]);
+  if (orbitAU) { stats.push(['Distance from its star', `${orbitAU.toFixed(2)} AU`]); stats.push(['Year', `${Math.round(365.25 * Math.pow(orbitAU, 1.5)).toLocaleString()} days`]); }
+  if (starTemp) stats.push(['Its star', `${Math.round(starTemp).toLocaleString()} K`]);
+  return {
+    kind: made ? `${name} · you made this` : `${name} · ${ordinal(index + 1)} planet of ${system} · imagined`,
+    stats, facts: [WORLD_NOTE[name] || WORLD_NOTE[KIND_NAME[kind]] || 'A world of its own.', made ? 'Throw it near a star and it will settle into an orbit.' : 'Generated from this system’s seed, so it is the same every time you visit.'],
+  };
+}
+export function holeInfo(mass) {
+  const suns = mass * 10, km = 2 * 2.95 * suns;
+  return {
+    kind: 'Black hole · you made this',
+    stats: [['Mass', `${Math.round(suns)} Suns`], ['Event horizon', `${Math.round(km)} km across`], ['Escape speed at the edge', 'the speed of light'], ['Light that escapes', 'none']],
+    facts: ['Nothing that crosses the event horizon comes back, not even light.', 'The glowing ring is matter heating up as it spirals in.', 'Things that pass too close are stretched into streams before they fall.'],
+  };
 }

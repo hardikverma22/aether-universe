@@ -14,7 +14,7 @@ import { Hands, CONNECTIONS } from './hands.js';
 import { makeUniverse, PALETTES, SHAPES } from './universe.js';
 import { makeSystemView, SOL, makeExoSystem, PLANET_FACTS, SUN_MASS, prefetchSol } from './system.js';
 import { formatDate, moonKm } from './ephem.js';
-import { INFO, lightTime } from './facts.js';
+import { INFO, lightTime, starInfo, worldInfo, holeInfo } from './facts.js';
 import { makeCreator } from './create.js';
 import { makeStudio } from './studio.js';
 import * as sfx from './audio.js';
@@ -396,16 +396,30 @@ function buildLegend() {
 }
 // info panel: what you learn about the body you're looking at (our Solar System only)
 let infoFor = null, infoT = 0;
+function infoData(b) {
+  if (!b) return null;
+  if (isSol()) return INFO[nameOf(b)] || null;
+  if (b.isSun && currentSystem) { const t = currentSystem.star.temp; return starInfo(t, spectralClassOf(t), currentSystem.star.radius, false); }
+  if (b.def && currentSystem) { const p = b.def, i = currentSystem.planets.indexOf(p); return worldInfo({ kind: p.kind, index: i, system: currentSystem.name, orbitAU: p.orbit / 3.9, earthRadii: p.gas ? p.r / 0.62 * 11.2 : p.r / 0.24, starTemp: currentSystem.star.temp }); }
+  if (b.type === 'star') return starInfo(b.temp, b.cls, b.mass, true);
+  if (b.type === 'hole') return holeInfo(b.mass);
+  if (b.type === 'planet') return worldInfo({ kind: b.kind, made: true, earthRadii: b.radius / 0.085, massEarths: b.mass * 100 });
+  return null;
+}
+const spectralClassOf = (K) => K > 25000 ? 'O' : K > 10000 ? 'B' : K > 7500 ? 'A' : K > 6000 ? 'F' : K > 5200 ? 'G' : K > 3700 ? 'K' : 'M';
+const navList = () => isSol() ? legendBodies() : mode === 'system' ? [Object.assign(sunObj, { radius: currentSystem?.star.radius || 1 }), ...systemView.visitables, ...bodies.list] : bodies.list;
 function showInfo(b) {
-  const n = b ? nameOf(b) : null, data = n && isSol() ? INFO[n] : null; const el = $('info');
+  const data = infoData(b), n = b ? nameOf(b) : null; const el = $('info');
   if (!data) { if (!el.hidden) gsap.to(el, { opacity: 0, x: -16, duration: 0.3, ease: 'power2.in', onComplete: () => { el.hidden = true; } }); infoFor = null; $('panel').style.visibility = ''; document.body.classList.remove('has-info'); return; }
   infoFor = b; $('panel').style.visibility = 'hidden'; document.body.classList.add('has-info');
   el.querySelector('.ikind').textContent = data.kind;
   el.querySelector('.istats').innerHTML = data.stats.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('');
   el.querySelector('.ifacts').innerHTML = data.facts.map((f) => `<li>${f}</li>`).join('');
-  const list = legendBodies(), i = list.findIndex((x) => nameOf(x) === n);
+  const list = navList(), i = Math.max(0, list.indexOf(b) >= 0 ? list.indexOf(b) : list.findIndex((x) => nameOf(x) === n));
   const prev = list[(i - 1 + list.length) % list.length], next = list[(i + 1) % list.length];
-  $('infoPrev').querySelector('b').textContent = nameOf(prev); $('infoNext').querySelector('b').textContent = nameOf(next);
+  const label = (x) => (x.isSun || x.def || isSol() ? nameOf(x) : describe(x)[0]);
+  el.querySelector('.inav').hidden = list.length < 2;
+  $('infoPrev').querySelector('b').textContent = label(prev); $('infoNext').querySelector('b').textContent = label(next);
   $('infoPrev').onclick = () => focusOn(prev); $('infoNext').onclick = () => focusOn(next);
   updateInfoLive(); el.hidden = false;
   gsap.killTweensOf(el); gsap.fromTo(el, { opacity: 0, x: -18 }, { opacity: 1, x: 0, duration: 0.6, ease: 'power3.out' });
@@ -413,6 +427,7 @@ function showInfo(b) {
 }
 function updateInfoLive() {
   if (!infoFor) return; const b = infoFor, n = nameOf(b), el = $('info').querySelector('.ilive'); const date = systemView.clock.date;
+  if (!isSol()) { el.hidden = true; return; }
   let t = '';
   if (b.isSun) { const au = systemView.realDistance('Earth'); t = `Its light reaches Earth in ${lightTime(au)} right now.`; }
   else if (b.parent) { const km = moonKm(date); t = `Now ${Math.round(km).toLocaleString()} km from Earth · its light reaches us in ${(km / 299792).toFixed(2)} s.`; }
