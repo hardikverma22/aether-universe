@@ -83,6 +83,12 @@ export function makeExoSystem(seed, name) {
 }
 export const exoName = (rnd) => SYL[Math.floor(rnd() * SYL.length)] + 'ler-' + (10 + Math.floor(rnd() * 990));
 
+/** start downloading our Solar System's textures in the background, so they're ready when you visit */
+export function prefetchSol() {
+  const maps = [SOL.star.texture, ...SOL.planets.flatMap((p) => [p.map, p.normal, p.height, typeof p.rings === 'string' ? p.rings : null, ...(p.moons || []).flatMap((m) => [m.map, m.height])]),
+    '8k_earth_clouds.jpg', '4k_earth_nightmap.jpg', '4k_earth_specular_map.jpg'].filter(Boolean);
+  maps.forEach((m, i) => setTimeout(() => tex(m, !/normal|height|specular/.test(m)), i * 120));
+}
 // ---------------------------------------------------------------- materials
 function sunMesh(def) {
   const col = uniform(blackbody(def.temp));

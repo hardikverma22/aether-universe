@@ -113,10 +113,11 @@ export class Bodies {
     const L = this.list; const sub = 3, h = dt / sub;
     for (let s = 0; s < sub; s++) {
       for (const a of L) {
+        if (this.calm && a.type === 'star') { a.vel.set(0, 0, 0); continue; }   // calm (home screen): stars stay put
         const acc = new THREE.Vector3();
         const dc = this.center.clone().sub(a.pos); const rc2 = dc.lengthSq() + this.coreSoft; // soft core: weak tidal pull, so star systems stay intact
         acc.addScaledVector(dc, G * this.coreMass / (rc2 * Math.sqrt(rc2)));
-        for (const b of L) { if (a === b) continue; const d = b.pos.clone().sub(a.pos); const r2 = d.lengthSq() + SOFT; acc.addScaledVector(d, G * b.mass / (r2 * Math.sqrt(r2))); }
+        for (const b of L) { if (a === b || (this.calm && b.type !== 'star')) continue; const d = b.pos.clone().sub(a.pos); const r2 = d.lengthSq() + SOFT; acc.addScaledVector(d, G * b.mass / (r2 * Math.sqrt(r2))); }
         a.vel.addScaledVector(acc.clampLength(0, 60), h);
       }
       for (const a of L) a.pos.addScaledVector(a.vel, h);

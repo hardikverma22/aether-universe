@@ -86,6 +86,7 @@ export function makeCreator({ scene, camera, bodies, nebula, hands, toWorld, toS
     // second hand pinching the star the other hand holds = stretch it
     const other = st[1 - k]; if (k < 2 && b && other?.mode === 'grab' && other.body === b && b.type === 'star') { s.mode = 'stretch'; s.body = b; other.partner = k; s.d0 = 0; s.m0 = b.mass; return; }
     if (b) { s.mode = 'grab'; s.body = b; s.t0 = now; sfx.whoosh(); return; }
+    if (api.blocked?.(sx, sy)) { s.mode = null; return; }   // pinching a world that isn't yours (a system's own planet): not a creation
     s.mode = 'gather'; s.t0 = now; s.held = 0;
   }
   function hold(k, pos, vel, dt) {

@@ -12,7 +12,7 @@ import { Bodies } from './bodies.js';
 import { makeNebula } from './nebula.js';
 import { Hands, CONNECTIONS } from './hands.js';
 import { makeUniverse, PALETTES, SHAPES } from './universe.js';
-import { makeSystemView, SOL, makeExoSystem, PLANET_FACTS, SUN_MASS } from './system.js';
+import { makeSystemView, SOL, makeExoSystem, PLANET_FACTS, SUN_MASS, prefetchSol } from './system.js';
 import { formatDate, moonKm } from './ephem.js';
 import { makeCreator } from './create.js';
 import * as sfx from './audio.js';
@@ -508,6 +508,7 @@ addEventListener('keydown', (e) => {
   if (e.key === 't') setTrueScale(systemView.scale.k < 0.5);
   if (e.key === '1') goPlayground(); if (e.key === '2') goSolarSystem(); if (e.key === '3') goUniverse();
 });
+creator.blocked = (x, y) => { if (mode !== 'system') return false; const b = pickWorld(x, y); return !!b && !bodies.list.includes(b); };
 function toggleHoleTool() { const on = creator.mouseTool !== 'hole'; creator.setTool(on ? 'hole' : null); $('btnHole').classList.toggle('on', on); if (on) say('Black hole', 'Click where it should appear'); }
 
 // ================================================================ recording (9:16)
@@ -552,7 +553,7 @@ function refreshHUD() {
   $('crumbs').hidden = !crumbs.length;
   $('crumbs').querySelectorAll('[data-go]').forEach((b) => (b.onclick = async () => { const k = b.dataset.go; if (k === 'universe') { if (mode === 'system') await exitSystem(); if (mode === 'galaxy') exitGalaxy(); } if (k === 'galaxy' && mode === 'system') exitSystem(); if (k === 'system') unfocus(); }));
   $('tools2').hidden = !creating() || hands.mode === 'camera' && false;
-  $('timebar').hidden = !isSol(); syncTimebar();
+  $('timebar').hidden = !isSol(); syncTimebar(); $('credit').hidden = !isSol();
 }
 
 const settled = (h) => h.active > 0.8 && performance.now() - (h.since || 0) > 400;
@@ -605,6 +606,7 @@ function attract() {
   loadPlayground();
   const c = PLAY.pos.clone().add(new THREE.Vector3(1.4, 0, 0));
   rig.setFrom(c, new THREE.Vector3(0, 0.42, 1), 8.6);
+  bodies.calm = true; galaxy.u.starPull.value = 0;   // home: perfect orbits that never decay, stardust that doesn't clump
   const sun = bodies.add('star', c, new THREE.Vector3(), 1.9);
   [[1.15, 'lava', 0.4], [1.75, 'terran', 2.6], [2.45, 'ice', 4.4], [3.3, 'gas', 1.5]].forEach(([r, kind, a]) => {
     const p = c.clone().add(new THREE.Vector3(Math.cos(a) * r, 0, Math.sin(a) * r));
@@ -631,14 +633,15 @@ async function start(m) {
   try { if (m === 'camera') { status.textContent = 'Waking the stars…'; await hands.initCamera(); updateCover(); } else hands.initMouse(glc); }
   catch (e) { console.warn(e); hands.initMouse(glc); banner('Camera unavailable — using the mouse. Allow camera access, then click 🖱 Mouse to switch.'); }
   gsap.to('#intro', { opacity: 0, duration: 0.9, ease: 'power2.inOut', onComplete: () => ($('intro').hidden = true) });
-  bodies.clear(); renderer.compute(galaxy.init); gsap.to(homeShift, { k: 0, duration: 1.6, ease: 'power2.inOut' }); gsap.to(rig.goal, { radius: PLAY_R, phi: 1.068, duration: 1.6, ease: 'power2.inOut' });
+  bodies.clear(); bodies.calm = false; galaxy.u.starPull.value = 0.75; renderer.compute(galaxy.init); gsap.to(homeShift, { k: 0, duration: 1.6, ease: 'power2.inOut' }); gsap.to(rig.goal, { radius: PLAY_R, phi: 1.068, duration: 1.6, ease: 'power2.inOut' });
   gsap.to(rig.target, { x: PLAY.pos.x, y: PLAY.pos.y, z: PLAY.pos.z, duration: 1.6, ease: 'power2.inOut' });
   started = true; $('hud').hidden = false; status.textContent = ''; updateInputButton(); refreshHUD();
   gsap.from('#panel, #tools, #places', { y: 12, opacity: 0, duration: 0.9, delay: 0.4 });
   setTimeout(() => say('Your playground', 'Make anything — nothing can go wrong'), 900);
   coachFor('playground');
+  setTimeout(prefetchSol, 3000);
 }
-function updateInputButton() { $('btnInput').textContent = hands.mode === 'camera' ? '✋ Hands' : '🖱 Mouse'; $('btnInput').title = hands.mode === 'camera' ? 'Using your hands — click to use the mouse' : 'Using the mouse — click to use your hands'; }
+function updateInputButton() { $('btnFeed').hidden = hands.mode !== 'camera'; $('btnInput').textContent = hands.mode === 'camera' ? '✋ Hands' : '🖱 Mouse'; $('btnInput').title = hands.mode === 'camera' ? 'Using your hands — click to use the mouse' : 'Using the mouse — click to use your hands'; }
 function banner(text) { const b = $('banner'); b.textContent = text; b.hidden = !text; }
 async function switchInput() {
   if (hands.mode === 'camera') hands.initMouse(glc);
