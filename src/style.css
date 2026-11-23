@@ -154,3 +154,20 @@ button:focus-visible { outline: 2px solid #9fb4ff; outline-offset: 3px; }
 #keys b { display: block; font-weight: 500; font-size: 18px; margin-bottom: 14px; }
 #keys dl { display: grid; grid-template-columns: auto 1fr; gap: 9px 18px; margin: 0; font-size: 14px; }
 #keys dt { color: #cfe5ff; font-variant-numeric: tabular-nums; } #keys dd { margin: 0; color: #c3cbe0; }
+/* small screens: one row of places on top, tools under it, no guide panel (the coach covers it), compact clock and legend */
+@media (max-width: 760px) {
+  #places { top: max(10px, env(safe-area-inset-top)); }
+  #tools { top: calc(max(10px, env(safe-area-inset-top)) + 48px); right: 50%; transform: translateX(50%); gap: 6px; }
+  #tools button { padding: .42em .8em; font-size: 11px; }
+  #crumbs { top: calc(max(10px, env(safe-area-inset-top)) + 92px); }
+  #toast { top: calc(max(10px, env(safe-area-inset-top)) + 120px); }
+  #panel { display: none; }
+  #timebar { padding: 3px 3px 3px 12px; font-size: 12px; max-width: calc(100vw - 16px); }
+  #timebar button { white-space: nowrap; padding: .45em .7em; font-size: 11px; }
+  #simDate { min-width: 0; white-space: nowrap; }
+  #legend { bottom: 64px; max-height: 38vh; padding: 4px; }
+  #legendList button { padding: 5px 8px; font-size: 12px; gap: 8px; }
+  #credit { left: 8px; right: 8px; font-size: 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #coach { left: 8px; right: 8px; width: auto; bottom: 64px; }
+}
+#crumbs:empty { display: none !important; }
