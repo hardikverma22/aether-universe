@@ -509,8 +509,8 @@ function drawOverlay() {
     ctx.lineCap = 'round'; ctx.strokeStyle = `rgba(170,190,255,${0.24 * h.active})`; ctx.lineWidth = 1.3; ctx.shadowColor = 'rgba(140,170,255,0.9)'; ctx.shadowBlur = 12;
     ctx.beginPath(); for (const [a, b] of CONNECTIONS) { ctx.moveTo(...P[a]); ctx.lineTo(...P[b]); } ctx.stroke();
     ctx.fillStyle = `rgba(230,236,255,${0.6 * h.active})`; for (const i of [4, 8, 12, 16, 20]) { ctx.beginPath(); ctx.arc(...P[i], 2.4, 0, 7); ctx.fill(); }
-    const g = h.point > 0.6 ? '👉 point' : h.lat.pinch.on ? '🤏 pinch' : h.lat.fist.on ? '✊ fist' : h.open > 0.6 ? '✋ open' : '';
-    pill(g, P[0][0], P[0][1] + 60, h.point > 0.6 || h.lat.pinch.on || h.lat.fist.on);
+    const g = h.victory > 0.5 ? '✌️ peace' : h.point > 0.6 ? '👉 point' : h.lat.pinch.on ? '🤏 pinch' : h.lat.fist.on ? '✊ fist' : h.open > 0.6 ? '✋ open' : '';
+    pill(g, P[0][0], P[0][1] + 60, h.victory > 0.5 || h.point > 0.6 || h.lat.pinch.on || h.lat.fist.on);
   }
   for (const l of creator.labels) pill(l.text, l.x, l.y, true);
   const T = handNavigation.tip, UI = handNavigation.ui;
@@ -621,7 +621,7 @@ function toggleRecord() {
 
 // ================================================================ HUD: places, breadcrumb, one short panel, coach
 const PANEL = {
-  playground: { title: 'Playground', cam: ['🤏 <b>Pinch &amp; hold</b>, let go → star', '🤏 <b>Quick pinch</b> beside a star → planet', '✊✊ <b>Two fists</b> together → black hole', '🤏 <b>Pinch a world</b> to grab and throw it', '👉 <b>Point &amp; hold</b> any button to press it'], mouse: ['<b>Hold</b> in space, release → star', '<b>Click</b> beside a star → planet', '<b>Drag</b> a world to throw it', '<b>B</b> → black hole · <b>?</b> all shortcuts'] },
+  playground: { title: 'Playground', cam: ['🤏 <b>Pinch &amp; hold</b>, let go → star', '🤏 <b>Quick pinch</b> beside a star → planet', '✌️ <b>Hold a peace sign</b> → black hole', '🤏 <b>Pinch a world</b> to grab and throw it', '👉 <b>Point &amp; hold</b> any button to press it'], mouse: ['<b>Hold</b> in space, release → star', '<b>Click</b> beside a star → planet', '<b>Drag</b> a world to throw it', '<b>B</b> → black hole · <b>?</b> all shortcuts'] },
   system: { title: 'Star system', cam: ['🤏 <b>Pinch</b> to add planets and stars', '👉 <b>Point &amp; hold</b> a planet → close-up', '✋✋ <b>Both palms</b> → back'], mouse: ['<b>Hold / click</b> in space to add worlds', '<b>Click</b> a planet → close-up', '<b>Drag</b> to turn · <b>Esc</b> back'] },
   galaxy: { title: 'A galaxy', cam: ['✋ <b>Move your hand</b> through the stars', '👉 <b>Point &amp; hold</b> a glowing star system', '✋✋ <b>Both palms</b> → back'], mouse: ['<b>Move</b> through the stars', '<b>Click</b> a glowing star system', '<b>Esc</b> → back'] },
   universe: { title: 'The universe', cam: ['✋ <b>Open palm</b> turns the sky', '👉 <b>Point &amp; hold</b> a galaxy to fly in'], mouse: ['<b>Drag</b> to turn, <b>scroll</b> to zoom', '<b>Click</b> a galaxy to fly in'] },
@@ -657,7 +657,7 @@ const COACH = {
       { text: '🤏 Pinch your thumb and finger, and hold — watch the stardust gather', done: () => creator.gatherHeld > 0.6, ok: 'Gathering stardust…' },
       { text: 'Let go — a star is born', done: () => made.star > 0, ok: 'A star!' },
       { text: '🤏 Now a quick pinch a little away from your star, and let go', done: () => made.planet > 0, ok: 'A planet in orbit' },
-      { text: '✊✊ Two fists together → a black hole', done: () => made.hole > 0, ok: 'A black hole' },
+      { text: '✌️ Hold up a peace sign → a black hole', done: () => made.hole > 0, ok: 'A black hole' },
     ],
     mouse: [
       { text: 'Press and hold in space — watch the stardust gather', done: () => creator.gatherHeld > 0.6, ok: 'Gathering stardust…' },

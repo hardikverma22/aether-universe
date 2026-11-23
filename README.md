@@ -23,7 +23,7 @@ See [docs/PRODUCT.md](docs/PRODUCT.md) for what it is and why.
 | 🤏 quick pinch, let go | **planet** (move as you let go to throw; a golden line previews the orbit) |
 | 🤏 pinch a world | grab it, move it, throw it |
 | 🤏🤏 both hands on one star, pull apart | it swells… then **supernova** |
-| ✊✊ two fists together | **black hole** |
+| ✌️ hold a peace sign (½ s) | **black hole** |
 | 👉 point & hold | go closer (galaxy → system → planet close-up); on a button, presses it (Customise, legend, clock, tabs) |
 | ✋✋ both palms still | go back |
 
