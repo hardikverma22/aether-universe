@@ -7,3 +7,4 @@ public/mediapipe-wasm/
 !.env.example
 .claude/
 .taste-skill/
+public/__test/
