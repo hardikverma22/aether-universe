@@ -45,13 +45,13 @@ export function makeCraft(root) {
     for (let i = 0; i < P.count; i++) { v3.fromBufferAttribute(P, i); let k = 1; for (const b of bumps) k -= Math.max(0, v3.dot(b)) * 0.18; v3.multiplyScalar(k); P.setXYZ(i, v3.x, v3.y, v3.z); }
     rockGeo.computeVertexNormals();
   }
-  const rockMat = new THREE.MeshStandardNodeMaterial({ color: 0x8a8178, roughness: 0.95, metalness: 0, flatShading: true });
+  const rockMat = new THREE.MeshStandardNodeMaterial({ color: 0xb3a899, roughness: 0.9, metalness: 0, flatShading: true });
   const N = 900, rnd = mulberry32(7); const belt = new THREE.InstancedMesh(rockGeo, rockMat, N);
   { const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), p = new THREE.Vector3(), s = new THREE.Vector3();
     for (let i = 0; i < N; i++) {
       const r = 5.55 + (rnd() + rnd() + rnd()) / 3 * 0.9, a = rnd() * Math.PI * 2, y = (rnd() - 0.5) * 0.28 * (r / 6);
       p.set(Math.cos(a) * r, y, Math.sin(a) * r); q.setFromEuler(e.set(rnd() * 6, rnd() * 6, rnd() * 6));
-      const k = 0.0025 + Math.pow(rnd(), 4) * 0.011; s.set(k, k * (0.7 + rnd() * 0.5), k);
+      const k = 0.0045 + Math.pow(rnd(), 4) * 0.012; s.set(k, k * (0.7 + rnd() * 0.5), k);
       belt.setMatrixAt(i, m4.compose(p, q, s));
     }
     belt.computeBoundingSphere(); }

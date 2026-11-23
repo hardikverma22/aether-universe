@@ -76,7 +76,7 @@ export function makeCreator({ scene, camera, bodies, nebula, hands, toWorld, toS
     nebula.emitBurst(p, c, 5000, 1.8); sfx.boom(); events?.('supernova', { pos: p, mass: m });
     if (m > 2.4) setTimeout(() => bodies.add('hole', p, new THREE.Vector3(), m * 0.5), 450);
   }
-  const bodyNearScreen = (sx, sy, px = 55) => {
+  const bodyNearScreen = (sx, sy, px = 64) => {
     let best = null, bd = Infinity;
     for (const b of bodies.list) { const s = toScreen(b.pos); if (!s.front) continue; const rpx = Math.max(px, (b.radius / camera.position.distanceTo(b.pos)) * innerHeight * 1.3); const d = Math.hypot(s.x - sx, s.y - sy); if (d < rpx && d < bd) { bd = d; best = b; } }
     return best;
@@ -136,7 +136,10 @@ export function makeCreator({ scene, camera, bodies, nebula, hands, toWorld, toS
     if (hands.mode === 'camera') {
       hands.hands.forEach((h, k) => {
         const on = h.active > 0.6 && h.lat.pinch.on && h.point < 0.5;
-        const sp = toScreen(h.pos);
+        // where the pinch really is: the thumb and index fingertips (the smoothed control point lags behind at the
+        // moment a pinch closes, which made "pinch a world to grab it" miss and start a new star instead)
+        const tipX = h.screen ? (h.screen[4].x + h.screen[8].x) / 2 * innerWidth : null, tipY = h.screen ? (h.screen[4].y + h.screen[8].y) / 2 * innerHeight : null;
+        const sp = tipX != null ? { x: tipX, y: tipY } : toScreen(h.pos);
         if (on && !wasPinch[k]) begin(k, h.pos, sp.x, sp.y, now);
         if (on) hold(k, h.pos, h.vel, dt);
         if (!on && wasPinch[k]) end(k, h.pos, h.vel);
@@ -186,5 +189,5 @@ export function makeCreator({ scene, camera, bodies, nebula, hands, toWorld, toS
     return clicked ? { body: clicked } : null;
   }
 
-  return Object.assign(api, { opt, update, mouseDown, mouseMove, mouseUp, tickMouse, makeHole, supernova, setTool(t) { mouse.tool = t; }, get mouseTool() { return mouse.tool; }, isBusy: () => st.some((s) => s.mode) || mouse.down });
+  return Object.assign(api, { opt, slots: () => st.map((s) => s.mode || null), update, mouseDown, mouseMove, mouseUp, tickMouse, makeHole, supernova, setTool(t) { mouse.tool = t; }, get mouseTool() { return mouse.tool; }, isBusy: () => st.some((s) => s.mode) || mouse.down });
 }
