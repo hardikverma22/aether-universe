@@ -169,3 +169,25 @@ button:focus-visible { outline: 2px solid #9fb4ff; outline-offset: 3px; }
   #coach { left: 8px; right: 8px; width: auto; bottom: 64px; }
 }
 #crumbs:empty { display: none !important; }
+
+/* info panel */
+#info { position: absolute; left: 18px; top: 50%; translate: 0 -50%; width: min(360px, 34vw); max-height: 78vh; overflow-y: auto; scrollbar-width: none; pointer-events: auto;
+  padding: 18px 20px; border-radius: 18px; background: rgba(8,10,22,.86); color: #e6eaf6; }
+#info .ikind { font-size: 13px; color: #9fb0cc; margin-bottom: 14px; }
+#info .istats { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 16px; margin: 0 0 16px; }
+#info .istats dt { font-size: 12px; color: #8a96b2; margin-bottom: 3px; }
+#info .istats dd { margin: 0; font-size: 16px; font-weight: 500; color: #f2f5fb; line-height: 1.25; }
+#info .ilive { margin: 0 0 14px; padding: 10px 12px; border-radius: 12px; background: rgba(207,229,255,.08); font-size: 13px; line-height: 1.45; color: #cfe5ff; font-variant-numeric: tabular-nums; }
+#info .ifacts { margin: 0 0 16px; padding-left: 18px; display: flex; flex-direction: column; gap: 8px; font-size: 14px; line-height: 1.45; color: #d4dbea; }
+#info .ifacts li::marker { color: #6f7f9e; }
+#info .inav { display: flex; justify-content: space-between; gap: 8px; }
+#info .inav button { flex: 1; padding: 9px 12px; font-size: 13px; border-radius: 12px; background: rgba(255,255,255,.06); border: 0; color: #dfe4f3; transition: background-color .2s; }
+#info .inav button:hover { background: rgba(255,255,255,.12); }
+#info .inav b { font-weight: 500; }
+#infoNext { text-align: right; } #infoPrev { text-align: left; }
+@media (max-width: 760px) {
+  #info { left: 8px; right: 8px; width: auto; top: auto; bottom: 64px; translate: none; max-height: 44vh; padding: 14px 16px; }
+  #info .ifacts { display: none; }
+  body.has-info #legend { display: none; }
+  #info .istats { grid-template-columns: 1fr 1fr 1fr; gap: 10px; } #info .istats dd { font-size: 14px; }
+}

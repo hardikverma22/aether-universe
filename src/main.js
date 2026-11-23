@@ -14,6 +14,7 @@ import { Hands, CONNECTIONS } from './hands.js';
 import { makeUniverse, PALETTES, SHAPES } from './universe.js';
 import { makeSystemView, SOL, makeExoSystem, PLANET_FACTS, SUN_MASS, prefetchSol } from './system.js';
 import { formatDate, moonKm } from './ephem.js';
+import { INFO, lightTime } from './facts.js';
 import { makeCreator } from './create.js';
 import * as sfx from './audio.js';
 import { Rig } from './rig.js';
@@ -76,7 +77,7 @@ pipeline.outputNode = Fn(() => {
 })();
 const LOOK = {
   playground: { exp: 0.95, glow: 0.7, thr: 0.3 }, universe: { exp: 0.95, glow: 0.8, thr: 0.22 }, galaxy: { exp: 0.95, glow: 0.8, thr: 0.22 },
-  system: { exp: 0.9, glow: 0.45, thr: 0.62 }, star: { exp: 0.5, glow: 0.35, thr: 0.85 }, planet: { exp: 0.95, glow: 0.35, thr: 0.7 },
+  system: { exp: 0.9, glow: 0.45, thr: 0.62 }, star: { exp: 0.62, glow: 0.4, thr: 0.9 }, planet: { exp: 0.95, glow: 0.35, thr: 0.7 },
 };
 function setLook(k, d = 1.4) { const L = LOOK[k]; gsap.to(renderer, { toneMappingExposure: L.exp, duration: d }); gsap.to(glowFx.strength, { value: L.glow, duration: d }); gsap.to(glowFx.threshold, { value: L.thr, duration: d }); }
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); sizeOverlay(); updateCover(); });
@@ -268,7 +269,9 @@ async function exitSystem() {
   mode = 'galaxy'; refreshHUD(); await warp(0, 0.8);
 }
 const describe = (b) => {
+  if (b.isSun && isSol()) return ['The Sun', INFO['The Sun'].kind];
   if (b.isSun) return [currentSystem?.name === 'Sol' ? 'The Sun' : `${currentSystem?.name} (star)`, `${Math.round(currentSystem?.star.temp || 5778).toLocaleString()} K`];
+  if (isSol() && INFO[b.name]) return [b.name, INFO[b.name].kind];
   if (b.def) return [b.name, PLANET_FACTS[b.name] || b.fact || b.def.kind || ''];
   return b.type === 'hole' ? ['Black hole', `${b.mass.toFixed(1)} masses`] : b.type === 'star' ? [`${b.cls}-type star`, `${Math.round(b.temp).toLocaleString()} K · you made this`] : [({ terran: 'Ocean world', desert: 'Desert world', ice: 'Ice world', lava: 'Lava world', gas: 'Gas giant' })[b.kind] || 'World', 'you made this'];
 };
@@ -276,11 +279,11 @@ function focusOn(b) {
   if (!b || (mode !== 'system' && mode !== 'playground')) return;
   focus = b; rig.min = b.radius * 1.6;
   rig.goal.radius = focusDist(b);
-  const [t, sub] = describe(b); say(t, sub, true); refreshHUD(); setLook(b.isSun || b.type === 'star' ? 'star' : 'planet');
+  const [t, sub] = describe(b); say(t, sub, true); refreshHUD(); showInfo(b); setLook(b.isSun || b.type === 'star' ? 'star' : 'planet');
   systemView.visitables.forEach((o) => o.orbitLine && gsap.to(o.orbitLine.material, { opacity: 0.025, duration: 1 }));
 }
 function unfocus() {
-  if (!focus) return; focus = null; hideCard();
+  if (!focus) return; focus = null; hideCard(); showInfo(null);
   systemView.visitables.forEach((o) => o.orbitLine && gsap.to(o.orbitLine.material, { opacity: 0.12, duration: 1 }));
   if (mode === 'system') { rig.min = 2.5 * Math.pow(0.004, systemView.scale.k); rig.goal.radius = viewR(); setLook('system'); } else { rig.min = 3; rig.goal.radius = PLAY_R; setLook('playground'); }
   refreshHUD();
@@ -385,6 +388,32 @@ function buildLegend() {
     btn.onmouseenter = () => (legendHover = btn.dataset.n); btn.onmouseleave = () => (legendHover = null);
   });
 }
+// info panel: what you learn about the body you're looking at (our Solar System only)
+let infoFor = null, infoT = 0;
+function showInfo(b) {
+  const n = b ? nameOf(b) : null, data = n && isSol() ? INFO[n] : null; const el = $('info');
+  if (!data) { if (!el.hidden) gsap.to(el, { opacity: 0, x: -16, duration: 0.3, ease: 'power2.in', onComplete: () => { el.hidden = true; } }); infoFor = null; $('panel').style.visibility = ''; document.body.classList.remove('has-info'); return; }
+  infoFor = b; $('panel').style.visibility = 'hidden'; document.body.classList.add('has-info');
+  el.querySelector('.ikind').textContent = data.kind;
+  el.querySelector('.istats').innerHTML = data.stats.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('');
+  el.querySelector('.ifacts').innerHTML = data.facts.map((f) => `<li>${f}</li>`).join('');
+  const list = legendBodies(), i = list.findIndex((x) => nameOf(x) === n);
+  const prev = list[(i - 1 + list.length) % list.length], next = list[(i + 1) % list.length];
+  $('infoPrev').querySelector('b').textContent = nameOf(prev); $('infoNext').querySelector('b').textContent = nameOf(next);
+  $('infoPrev').onclick = () => focusOn(prev); $('infoNext').onclick = () => focusOn(next);
+  updateInfoLive(); el.hidden = false;
+  gsap.killTweensOf(el); gsap.fromTo(el, { opacity: 0, x: -18 }, { opacity: 1, x: 0, duration: 0.6, ease: 'power3.out' });
+  gsap.fromTo(el.querySelectorAll('.istats > div, .ilive, .ifacts li, .inav'), { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.5, ease: 'power3.out', stagger: 0.035, delay: 0.1 });
+}
+function updateInfoLive() {
+  if (!infoFor) return; const b = infoFor, n = nameOf(b), el = $('info').querySelector('.ilive'); const date = systemView.clock.date;
+  let t = '';
+  if (b.isSun) { const au = systemView.realDistance('Earth'); t = `Its light reaches Earth in ${lightTime(au)} right now.`; }
+  else if (b.parent) { const km = moonKm(date); t = `Now ${Math.round(km).toLocaleString()} km from Earth · its light reaches us in ${(km / 299792).toFixed(2)} s.`; }
+  else if (!b.def?.craft) { const au = systemView.realDistance(n); t = `Now ${au.toFixed(3)} AU (${Math.round(au * 149.6).toLocaleString()} million km) from the Sun · sunlight takes ${lightTime(au)} to get here.`; }
+  el.textContent = t; el.hidden = !t;
+}
+addEventListener('keydown', (e) => { if (!infoFor || !started) return; if (e.key === 'ArrowRight') $('infoNext').click(); if (e.key === 'ArrowLeft') $('infoPrev').click(); });
 let legendT = 0;
 function updateLegend(dt) {
   buildLegend(); if ($('legend').hidden) return;
@@ -395,7 +424,7 @@ function updateLegend(dt) {
     btn.classList.toggle('on', focus === b);
     if (legendT <= 0 && !b.isSun) btn.querySelector('em').textContent = distanceLabel(b);
   });
-  if (legendT <= 0) legendT = 0.5;
+  if (legendT <= 0) { legendT = 0.5; updateInfoLive(); }
 }
 function distanceLabel(b) {
   if (b.def?.craft) return b.host ? `at ${b.host}` : 'interstellar';

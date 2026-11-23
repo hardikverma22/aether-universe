@@ -22,7 +22,7 @@ export const CRAFT = [
   { name: 'ISS', file: 'iss.glb', size: 0.03, host: 'Earth', orbit: 1.09, period: 24, incl: 0.9, fact: 'International Space Station · 400 km up, 16 sunrises a day · shown enlarged' },
   { name: 'Hubble', file: 'hubble.glb', size: 0.026, host: 'Earth', orbit: 1.14, period: 28, incl: 0.5, phase: 2.2, fact: 'Hubble Space Telescope · in orbit since 1990 · shown enlarged' },
   { name: 'James Webb', file: 'jwst.glb', size: 0.05, host: 'Earth', l2: 1.15, fact: 'James Webb Space Telescope · 1.5 million km beyond Earth, at the L2 point · shown enlarged' },
-  { name: 'Juno', file: 'juno.glb', size: 0.05, host: 'Jupiter', orbit: 1.5, period: 70, polar: true, fact: 'Juno · orbiting Jupiter over its poles since 2016 · shown enlarged' },
+  { name: 'Juno', file: 'juno.glb', size: 0.05, host: 'Jupiter', orbit: 1.5, period: 70, polar: true, fact: 'Juno · arrived at Jupiter in 2016 · shown enlarged' },
   { name: 'Cassini', file: 'cassini.glb', size: 0.06, host: 'Saturn', orbit: 2.7, period: 90, incl: 0.3, fact: 'Cassini · explored Saturn from 2004 to 2017 · shown enlarged' },
   { name: 'Voyager 1', file: 'voyager.glb', size: 0.12, far: [258.75, 12.1], dist: 21, fact: 'Voyager 1 · the farthest human-made object, in interstellar space since 2012 · shown enlarged' },
 ];

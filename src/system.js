@@ -27,7 +27,7 @@ export const SUN_MASS = Math.pow((2 * Math.PI / EARTH_YEAR) * 3.9, 2) * 3.9; // 
 
 // ---------------------------------------------------------------- our Solar System (compressed scale)
 export const SOL = {
-  name: 'Sol', real: true, star: { temp: 5778, radius: 1.0, texture: '4k_sun.jpg' },
+  name: 'Sol', real: true, star: { temp: 5778, radius: 1.0, texture: '4k_sun.jpg', real: true },
   planets: [
     { name: 'Mercury', map: '4k_mercury.jpg', r: 0.12, orbit: 2.2, airless: true },
     { name: 'Venus', map: '4k_venus_atmosphere.jpg', r: 0.22, orbit: 3.0, atmo: [1.0, 0.82, 0.5, 0.7] },
@@ -101,7 +101,11 @@ function sunMesh(def) {
   const boil = mx_noise_float(positionLocal.mul(40).add(time.mul(0.25))).mul(0.06).add(1);
   const limb = float(1).sub(float(0.6).mul(float(1).sub(mu)));
   const tint = mix(vec3(1.0, 0.55, 0.3), vec3(1), pow(mu, 0.5));
-  m.colorNode = vec3(col).mul(gray.mul(1.3).add(0.25)).mul(tint).mul(limb).mul(boil).mul(1.25);
+  // our Sun keeps the colour of its (NASA-based) texture: yellow-white centre, darker orange limb, boiling granulation;
+  // other stars are tinted by their temperature
+  const gran = mx_noise_float(positionLocal.mul(90).add(time.mul(0.4))).mul(0.5).add(0.5);
+  const realSun = surf.mul(1.55).mul(mix(vec3(1.0, 0.62, 0.32), vec3(1.0, 0.97, 0.9), pow(mu, 0.45))).mul(float(1).sub(float(0.72).mul(float(1).sub(pow(mu, 0.6))))).mul(gran.mul(0.16).add(0.92)).mul(boil);
+  m.colorNode = def.real ? realSun : vec3(col).mul(gray.mul(1.3).add(0.25)).mul(tint).mul(limb).mul(boil).mul(1.25);
   const mesh = new THREE.Mesh(SPHERE, m); mesh.scale.setScalar(def.radius);
   // corona + soft glare
   const cm = new THREE.SpriteNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
