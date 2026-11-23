@@ -36,7 +36,7 @@ button:focus-visible { outline: 2px solid #9fb4ff; outline-offset: 3px; }
 #coach .cdots i { width: 7px; height: 7px; border-radius: 50%; background: rgba(238,240,255,.18); }
 #coach .cdots i.d { background: #8dffc0; } #coach .cdots i.c { background: var(--ink); }
 #coachSkip { position: absolute; top: 10px; right: 10px; padding: .3em .8em; font-size: 11px; }
-#banner { position: absolute; left: 50%; top: 64px; transform: translateX(-50%); max-width: 92vw; padding: 10px 16px; border-radius: 12px; background: rgba(120,20,20,.85); border: 1px solid rgba(255,140,140,.5); font-size: 13px; pointer-events: auto; }
+#banner { position: absolute; left: 50%; top: 64px; transform: translateX(-50%); width: max-content; max-width: min(560px, 92vw); padding: 11px 16px; border-radius: 14px; background: rgba(46,32,12,.94); border: 1px solid rgba(255,196,120,.35); color: #ffe7c4; font-size: 14px; line-height: 1.45; pointer-events: auto; cursor: pointer; }
 
 #focusBar { position: absolute; left: 18px; top: max(16px, env(safe-area-inset-top)); display: flex; gap: 10px; align-items: center; pointer-events: auto; font-family: var(--serif); font-size: 18px; }
 #focusBar button { font-family: var(--sans); font-size: 12px; padding: .45em .9em; }
