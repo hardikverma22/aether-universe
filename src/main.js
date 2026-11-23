@@ -16,6 +16,7 @@ import { makeSystemView, SOL, makeExoSystem, PLANET_FACTS, SUN_MASS, prefetchSol
 import { formatDate, moonKm } from './ephem.js';
 import { INFO, lightTime } from './facts.js';
 import { makeCreator } from './create.js';
+import { makeStudio } from './studio.js';
 import * as sfx from './audio.js';
 import { Rig } from './rig.js';
 
@@ -29,6 +30,7 @@ renderer.setSize(innerWidth, innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 0.9;
 await renderer.init();
+if (/[#&]s=/.test(location.hash)) { $('intro').querySelector('.lede').textContent = 'Someone made a little universe and sent it to you. Press start to see it, then make it yours.'; }
 if (!renderer.backend?.isWebGPUBackend) $('intro').querySelector('.lede').textContent = 'This needs WebGPU — try the latest Chrome, Edge or Safari.';
 
 const scene = new THREE.Scene();
@@ -112,6 +114,7 @@ function galaxyLook(g) {
 function loadGalaxy(g) { galaxyLook(g); bodies.clear(); buildMarkers(g); }
 // the Playground: a soft stardust nebula at the origin; stars you make swirl the dust around them
 const PLAY = { pos: new THREE.Vector3(0, 0, 0), quat: new THREE.Quaternion().setFromEuler(new THREE.Euler(0.12, 0, 0.05)) };
+let studio = null;
 function loadPlayground() {
   const u = galaxy.u;
   u.center.value.copy(PLAY.pos); u.orient.value.setFromMatrix4(new THREE.Matrix4().makeRotationFromQuaternion(PLAY.quat));
@@ -122,6 +125,7 @@ function loadPlayground() {
   universe.group.visible = false; markers.visible = false; systemView.setVisible(false);
   galaxy.sprite.visible = true; galaxy.u.fade.value = 1; currentSystem = null; focus = null;
   rig.min = 3; rig.max = 30; rig.setFrom(PLAY.pos, new THREE.Vector3(0, 0.55, 1), PLAY_R);
+  studio?.applyTheme(studio.st.theme, true);
 }
 
 // ================================================================ coordinate mapping
@@ -540,7 +544,9 @@ addEventListener('keydown', (e) => {
   if (e.key === '1') goPlayground(); if (e.key === '2') goSolarSystem(); if (e.key === '3') goUniverse();
 });
 creator.blocked = (x, y) => { if (mode !== 'system') return false; const b = pickWorld(x, y); return !!b && !bodies.list.includes(b); };
-function toggleHoleTool() { const on = creator.mouseTool !== 'hole'; creator.setTool(on ? 'hole' : null); $('btnHole').classList.toggle('on', on); if (on) say('Black hole', 'Click where it should appear'); }
+studio = makeStudio({ bodies, creator, galaxy, center: PLAY.pos, quat: PLAY.quat, say });
+function toggleHoleTool() {
+  if (mode === 'playground') { studio.setMake(creator.opt.make === 'hole' ? 'auto' : 'hole'); say(creator.opt.make === 'hole' ? 'Black holes' : 'Back to auto', creator.opt.make === 'hole' ? 'Every pinch or click makes a black hole' : 'Quick pinch for a planet, hold for a star'); return; } const on = creator.mouseTool !== 'hole'; creator.setTool(on ? 'hole' : null); $('btnHole').classList.toggle('on', on); if (on) say('Black hole', 'Click where it should appear'); }
 
 // ================================================================ recording (9:16)
 const rec = { on: false, r: null, cv: document.createElement('canvas') };
@@ -583,7 +589,9 @@ function refreshHUD() {
   $('crumbs').innerHTML = crumbs.map(([k, n], i) => i < crumbs.length - 1 ? `<button data-go="${k}">${n}</button><span>›</span>` : `<b>${n}</b>`).join('');
   $('crumbs').hidden = !crumbs.length;
   $('crumbs').querySelectorAll('[data-go]').forEach((b) => (b.onclick = async () => { const k = b.dataset.go; if (k === 'universe') { if (mode === 'system') await exitSystem(); if (mode === 'galaxy') exitGalaxy(); } if (k === 'galaxy' && mode === 'system') exitSystem(); if (k === 'system') unfocus(); }));
-  $('tools2').hidden = !creating() || hands.mode === 'camera' && false;
+  $('tools2').hidden = !creating() || mode === 'playground';
+  $('studio').hidden = mode !== 'playground' || !started;
+  document.body.dataset.mode = mode;
   $('timebar').hidden = !isSol(); syncTimebar(); $('credit').hidden = !isSol();
 }
 
@@ -664,11 +672,12 @@ async function start(m) {
   try { if (m === 'camera') { status.textContent = 'Waking the stars…'; await hands.initCamera(); updateCover(); } else hands.initMouse(glc); }
   catch (e) { console.warn(e); hands.initMouse(glc); banner('Camera unavailable — using the mouse. Allow camera access, then click 🖱 Mouse to switch.'); }
   gsap.to('#intro', { opacity: 0, duration: 0.9, ease: 'power2.inOut', onComplete: () => ($('intro').hidden = true) });
-  bodies.clear(); bodies.calm = false; galaxy.u.starPull.value = 0.75; renderer.compute(galaxy.init); gsap.to(homeShift, { k: 0, duration: 1.6, ease: 'power2.inOut' }); gsap.to(rig.goal, { radius: PLAY_R, phi: 1.068, duration: 1.6, ease: 'power2.inOut' });
+  bodies.clear(); bodies.calm = false; galaxy.u.starPull.value = 0.75; renderer.compute(galaxy.init);
+  const shared = studio.loadFromHash(); gsap.to(homeShift, { k: 0, duration: 1.6, ease: 'power2.inOut' }); gsap.to(rig.goal, { radius: PLAY_R, phi: 1.068, duration: 1.6, ease: 'power2.inOut' });
   gsap.to(rig.target, { x: PLAY.pos.x, y: PLAY.pos.y, z: PLAY.pos.z, duration: 1.6, ease: 'power2.inOut' });
   started = true; $('hud').hidden = false; status.textContent = ''; updateInputButton(); refreshHUD();
   gsap.from('#panel, #tools, #places', { y: 12, opacity: 0, duration: 0.9, delay: 0.4 });
-  setTimeout(() => say('Your playground', 'Make anything — nothing can go wrong'), 900);
+  if (!shared) setTimeout(() => say('Your playground', 'Make anything. Open Customise on the right for more'), 900);
   coachFor('playground');
   setTimeout(prefetchSol, 3000);
 }
@@ -759,7 +768,9 @@ renderer.setAnimationLoop((now) => {
     if (camera.near !== 0.02) { camera.near = 0.02; camera.updateProjectionMatrix(); }
     if (systemView.scale.k) { gsap.killTweensOf(systemView.scale); systemView.scale.k = 0; $('btnScale').classList.remove('on'); }
   }
-  if (mode === 'system' || mode === 'playground' || !started) bodies.step(dt);
+  const play = mode === 'playground' && started;
+  bodies.g = play ? studio.g : 1; bodies.trails.visible = !play || studio.trails;
+  if (mode === 'system' || mode === 'playground' || !started) bodies.step(play ? dt * studio.timeScale : dt);
   bodyEvents();
   updateEffects(dt);
   nebula.update(renderer, dt, now / 1000);

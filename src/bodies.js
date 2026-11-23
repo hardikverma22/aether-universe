@@ -19,6 +19,7 @@ const radiusOf = (b) => b.type === 'star' ? 0.09 + 0.08 * Math.cbrt(b.mass) : b.
 
 export class Bodies {
   constructor(scene) {
+    this.g = 1;   // gravity strength multiplier (Playground studio)
     this.scene = scene; this.list = []; this.center = new THREE.Vector3(); this.events = [];
     // central attractor (galactic core or a star-system's sun), visual size multiplier and escape radius
     this.coreMass = CORE_MASS; this.coreSoft = 1.2; this.sizeMul = 1; this.escape = 16;
@@ -100,7 +101,7 @@ export class Bodies {
     const d = pos.clone().sub(anchor.pos); const r = Math.max(0.05, d.length());
     const t = new THREE.Vector3().crossVectors(d, viewDir).normalize();
     const eff = anchor.core ? this.coreMass * r * r * r / Math.pow(r * r + this.coreSoft, 1.5) : anchor.mass; // matches the softened core
-    return t.multiplyScalar(Math.sqrt(G * eff / r)).add(anchor.vel);
+    return t.multiplyScalar(Math.sqrt(G * this.g * eff / r)).add(anchor.vel);
   }
 
   nearest(pos, types, within = 1) {
@@ -116,8 +117,8 @@ export class Bodies {
         if (this.calm && a.type === 'star') { a.vel.set(0, 0, 0); continue; }   // calm (home screen): stars stay put
         const acc = new THREE.Vector3();
         const dc = this.center.clone().sub(a.pos); const rc2 = dc.lengthSq() + this.coreSoft; // soft core: weak tidal pull, so star systems stay intact
-        acc.addScaledVector(dc, G * this.coreMass / (rc2 * Math.sqrt(rc2)));
-        for (const b of L) { if (a === b || (this.calm && b.type !== 'star')) continue; const d = b.pos.clone().sub(a.pos); const r2 = d.lengthSq() + SOFT; acc.addScaledVector(d, G * b.mass / (r2 * Math.sqrt(r2))); }
+        acc.addScaledVector(dc, G * this.g * this.coreMass / (rc2 * Math.sqrt(rc2)));
+        for (const b of L) { if (a === b || (this.calm && b.type !== 'star')) continue; const d = b.pos.clone().sub(a.pos); const r2 = d.lengthSq() + SOFT; acc.addScaledVector(d, G * this.g * b.mass / (r2 * Math.sqrt(r2))); }
         a.vel.addScaledVector(acc.clampLength(0, 60), h);
       }
       for (const a of L) a.pos.addScaledVector(a.vel, h);

@@ -40,7 +40,9 @@ export function makeStarLook(b) {
     const limb = float(1).sub(float(0.62).mul(float(1).sub(mu)));
     const tint = mix(vec3(1.0, 0.55, 0.32), vec3(1.0), pow(mu, 0.45));
     const I = gran.mul(0.45).add(0.75).mul(fine.mul(0.12).add(0.94)).mul(float(1).sub(spot)).add(fac).mul(limb);
-    return vec3(u.col).mul(tint).mul(I).mul(1.08);
+    // saturate the blackbody colour so hot and cool stars stay visibly blue or orange after bloom and tone mapping
+    const lum = dot(vec3(u.col), vec3(0.3, 0.55, 0.15)); const vivid = max(mix(vec3(lum), vec3(u.col), 1.8), vec3(0));
+    return vivid.mul(tint).mul(I).mul(1.0);
   });
   const m = new THREE.MeshBasicNodeMaterial(); m.colorNode = surf();
   const core = new THREE.Mesh(SPHERE, m);
@@ -52,7 +54,8 @@ export function makeStarLook(b) {
     .mul(mx_noise_float(vec2(a.mul(14.0), u.seed)).mul(0.5).add(0.5)).pow(1.5);
   const fall = exp(max(d.sub(0.3), 0).mul(-5.5)).mul(smoothstep(0.27, 0.31, d));
   const corona = fall.mul(streamers.mul(1.1).add(0.2)).add(exp(max(d.sub(0.3), 0).mul(-14.0)).mul(0.5));
-  cm.colorNode = vec4(vec3(u.col).mul(1.1), 1); cm.opacityNode = corona.mul(smoothstep(1.0, 0.75, d)).mul(0.6);
+  const clum = dot(vec3(u.col), vec3(0.3, 0.55, 0.15)); const cviv = max(mix(vec3(clum), vec3(u.col), 2.0), vec3(0));
+  cm.colorNode = vec4(cviv.mul(1.1), 1); cm.opacityNode = corona.mul(smoothstep(1.0, 0.75, d)).mul(0.6);
   const coronaSprite = new THREE.Sprite(cm);
   return { core, extras: [coronaSprite], u, scaleExtras: (r) => coronaSprite.scale.setScalar(r * 4.6), update(bb) { u.center.value.copy(bb.pos); } };
 }

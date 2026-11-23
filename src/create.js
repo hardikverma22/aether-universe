@@ -62,11 +62,13 @@ export function makeCreator({ scene, camera, bodies, nebula, hands, toWorld, toS
   const throwVel = (v) => v.clone().multiplyScalar(0.42).clampLength(0, 4.5);
 
   // ---- making things
-  function makePlanet(pos, vel) { const b = bodies.add('planet', pos, assist(pos, vel), 0.01); sfx.chime(0.2); events?.('planet', b); return b; }
+  // studio options (Playground): what a pinch/click makes, star colour, planet type
+  const opt = { make: 'auto', temp: 0, kind: null };
+  function makePlanet(pos, vel) { const b = bodies.add('planet', pos, assist(pos, vel), 0.01, opt.kind || undefined); sfx.chime(0.2); events?.('planet', b); return b; }
   function makeStar(pos, vel, held) {
     const mass = THREE.MathUtils.clamp(0.35 + (held - PLANET_HOLD) * 1.1, 0.35, 3.2);
     nebula.emitBurst(pos, new THREE.Color(1, 0.8, 0.55), 900, 0.45);
-    const b = bodies.add('star', pos, assist(pos, vel), mass); sfx.chime(0.9); events?.('star', b); return b;
+    const b = bodies.add('star', pos, assist(pos, vel), mass, undefined, opt.temp ? { temp: opt.temp } : {}); sfx.chime(0.9); events?.('star', b); return b;
   }
   function makeHole(pos) { nebula.emitBurst(pos, new THREE.Color(0.32, 0.18, 0.75), 450, 1.2); const b = bodies.add('hole', pos, new THREE.Vector3(), 2.2); sfx.boom(); events?.('hole', b); return b; }
   function supernova(star) {
@@ -98,7 +100,8 @@ export function makeCreator({ scene, camera, bodies, nebula, hands, toWorld, toS
       g.material.userData.col.value.set(star ? new THREE.Color().setHSL(THREE.MathUtils.lerp(0.09, 0.58, Math.min(1, (s.held - PLANET_HOLD) / 2.2)), 0.85, 0.7) : new THREE.Color(0.75, 0.85, 1.0));
       sfx.gathering(true, Math.min(1, s.held / 2.5));
       predict(pos, assist(pos, throwVel(vel)), null);
-      const sp = toScreen(pos); api.labels.push({ x: sp.x, y: sp.y - 46, text: star ? (s.held > 1.6 ? '✦ big star' : '✦ star') : '● planet' });
+      const shown = opt.make === 'hole' ? '◉ black hole' : opt.make === 'star' || (opt.make === 'auto' && star) ? (s.held > 1.6 ? '✦ big star' : '✦ star') : '● planet';
+      const sp = toScreen(pos); api.labels.push({ x: sp.x, y: sp.y - 46, text: shown });
     } else if (s.mode === 'grab' && s.body) {
       if (!bodies.list.includes(s.body)) { s.mode = null; return; }
       if (s.partner != null && st[s.partner].mode === 'stretch') return;   // the stretch drives it now
@@ -114,7 +117,12 @@ export function makeCreator({ scene, camera, bodies, nebula, hands, toWorld, toS
   }
   function end(k, pos, vel) {
     const s = st[k]; glows[k].visible = false;
-    if (s.mode === 'gather') { if (s.held < PLANET_HOLD) makePlanet(pos, throwVel(vel)); else makeStar(pos, throwVel(vel), s.held); }
+    if (s.mode === 'gather') {
+      const m = opt.make;
+      if (m === 'hole') makeHole(pos);
+      else if (m === 'star' || (m === 'auto' && s.held >= PLANET_HOLD)) makeStar(pos, throwVel(vel), Math.max(s.held, PLANET_HOLD + 0.3));
+      else makePlanet(pos, throwVel(vel));
+    }
     if (s.mode === 'grab' && s.body && bodies.list.includes(s.body)) s.body.vel.copy(assist(s.body.pos, throwVel(vel)));
     if (s.mode === 'stretch') { const o = st.find((x) => x.partner === k); if (o) o.partner = null; }
     const was = s.mode; s.mode = null; s.body = null; s.partner = null; return was;
@@ -178,5 +186,5 @@ export function makeCreator({ scene, camera, bodies, nebula, hands, toWorld, toS
     return clicked ? { body: clicked } : null;
   }
 
-  return Object.assign(api, { update, mouseDown, mouseMove, mouseUp, tickMouse, makeHole, supernova, setTool(t) { mouse.tool = t; }, get mouseTool() { return mouse.tool; }, isBusy: () => st.some((s) => s.mode) || mouse.down });
+  return Object.assign(api, { opt, update, mouseDown, mouseMove, mouseUp, tickMouse, makeHole, supernova, setTool(t) { mouse.tool = t; }, get mouseTool() { return mouse.tool; }, isBusy: () => st.some((s) => s.mode) || mouse.down });
 }
