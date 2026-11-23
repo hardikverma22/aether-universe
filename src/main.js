@@ -179,7 +179,7 @@ function say(title, sub = '', stay = false) {
 const made = { star: 0, planet: 0, hole: 0, supernova: 0 };
 const creator = makeCreator({ scene, camera, bodies, nebula, hands, toWorld, toScreen, say, events: (kind, b) => {
   if (made[kind] != null) made[kind]++;
-  if (kind === 'star' && made.star === 1) say('A star is born', 'Now pinch quickly near it and let go — a planet');
+  if (kind === 'star' && made.star === 1) say('A star is born', 'Now pinch quickly a little away from it and let go: a planet');
   if (kind === 'planet' && made.planet === 1) say('It\'s orbiting', 'Your first solar system');
   if (kind === 'hole') say('Black hole', 'It swallows anything that comes too close');
   if (kind === 'supernova') { say('Supernova', 'You pulled a star apart'); U.flash.value = 0.3; nova.chroma = 0.8; galaxy.u.bangPos.value.copy(b.pos); nova.explode = 0.5; }
@@ -621,7 +621,7 @@ function toggleRecord() {
 
 // ================================================================ HUD: places, breadcrumb, one short panel, coach
 const PANEL = {
-  playground: { title: 'Playground', cam: ['🤏 <b>Pinch &amp; hold</b>, let go → star', '🤏 <b>Quick pinch</b> near a star → planet', '✊✊ <b>Two fists</b> together → black hole', '🤏 <b>Pinch a world</b> to grab and throw it', '👉 <b>Point &amp; hold</b> any button to press it'], mouse: ['<b>Hold</b> in space, release → star', '<b>Click</b> near a star → planet', '<b>Drag</b> a world to throw it', '<b>B</b> → black hole · <b>?</b> all shortcuts'] },
+  playground: { title: 'Playground', cam: ['🤏 <b>Pinch &amp; hold</b>, let go → star', '🤏 <b>Quick pinch</b> beside a star → planet', '✊✊ <b>Two fists</b> together → black hole', '🤏 <b>Pinch a world</b> to grab and throw it', '👉 <b>Point &amp; hold</b> any button to press it'], mouse: ['<b>Hold</b> in space, release → star', '<b>Click</b> beside a star → planet', '<b>Drag</b> a world to throw it', '<b>B</b> → black hole · <b>?</b> all shortcuts'] },
   system: { title: 'Star system', cam: ['🤏 <b>Pinch</b> to add planets and stars', '👉 <b>Point &amp; hold</b> a planet → close-up', '✋✋ <b>Both palms</b> → back'], mouse: ['<b>Hold / click</b> in space to add worlds', '<b>Click</b> a planet → close-up', '<b>Drag</b> to turn · <b>Esc</b> back'] },
   galaxy: { title: 'A galaxy', cam: ['✋ <b>Move your hand</b> through the stars', '👉 <b>Point &amp; hold</b> a glowing star system', '✋✋ <b>Both palms</b> → back'], mouse: ['<b>Move</b> through the stars', '<b>Click</b> a glowing star system', '<b>Esc</b> → back'] },
   universe: { title: 'The universe', cam: ['✋ <b>Open palm</b> turns the sky', '👉 <b>Point &amp; hold</b> a galaxy to fly in'], mouse: ['<b>Drag</b> to turn, <b>scroll</b> to zoom', '<b>Click</b> a galaxy to fly in'] },
@@ -656,13 +656,13 @@ const COACH = {
       { text: '✋ Raise one hand so the camera can see it', done: () => hands.hands.some((h) => h.active > 0.8), ok: 'Got your hand' },
       { text: '🤏 Pinch your thumb and finger, and hold — watch the stardust gather', done: () => creator.gatherHeld > 0.6, ok: 'Gathering stardust…' },
       { text: 'Let go — a star is born', done: () => made.star > 0, ok: 'A star!' },
-      { text: '🤏 Now a quick pinch near your star, and let go', done: () => made.planet > 0, ok: 'A planet in orbit' },
+      { text: '🤏 Now a quick pinch a little away from your star, and let go', done: () => made.planet > 0, ok: 'A planet in orbit' },
       { text: '✊✊ Two fists together → a black hole', done: () => made.hole > 0, ok: 'A black hole' },
     ],
     mouse: [
       { text: 'Press and hold in space — watch the stardust gather', done: () => creator.gatherHeld > 0.6, ok: 'Gathering stardust…' },
       { text: 'Release — a star is born', done: () => made.star > 0, ok: 'A star!' },
-      { text: 'Click near your star — a planet', done: () => made.planet > 0, ok: 'A planet in orbit' },
+      { text: 'Click a little away from your star: a planet', done: () => made.planet > 0, ok: 'A planet in orbit' },
       { text: 'Press B, then click, for a black hole', done: () => made.hole > 0, ok: 'A black hole' },
     ],
   },
