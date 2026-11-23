@@ -158,7 +158,7 @@ export class Hands {
   }
 
   _updateMouse(dt, toWorld) {
-    const h = this.hands[0], m = this.mouse;
+    const h = this.hands[0], m = this.mouse; if (!m) return;   // mouse input not set up yet
     const target = toWorld(m.x, m.y, 0); const prev = h.pos.clone();
     if (h.active < 0.5) prev.copy(target);
     h.pos.lerp(target, 0.5);
