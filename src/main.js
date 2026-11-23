@@ -13,6 +13,7 @@ import { makeNebula } from './nebula.js';
 import { Hands, CONNECTIONS } from './hands.js';
 import { makeUniverse, PALETTES, SHAPES } from './universe.js';
 import { makeSystemView, SOL, makeExoSystem, PLANET_FACTS, SUN_MASS } from './system.js';
+import { formatDate } from './ephem.js';
 import { makeCreator } from './create.js';
 import * as sfx from './audio.js';
 import { Rig } from './rig.js';
@@ -240,7 +241,7 @@ async function exitSystem() {
 }
 const describe = (b) => {
   if (b.isSun) return [currentSystem?.name === 'Sol' ? 'The Sun' : `${currentSystem?.name} (star)`, `${Math.round(currentSystem?.star.temp || 5778).toLocaleString()} K`];
-  if (b.def) return [b.name, PLANET_FACTS[b.name] || b.def.kind || ''];
+  if (b.def) return [b.name, PLANET_FACTS[b.name] || b.fact || b.def.kind || ''];
   return b.type === 'hole' ? ['Black hole', `${b.mass.toFixed(1)} masses`] : b.type === 'star' ? [`${b.cls}-type star`, `${Math.round(b.temp).toLocaleString()} K · you made this`] : [({ terran: 'Ocean world', desert: 'Desert world', ice: 'Ice world', lava: 'Lava world', gas: 'Gas giant' })[b.kind] || 'World', 'you made this'];
 };
 function focusOn(b) {
@@ -459,6 +460,7 @@ function refreshHUD() {
   $('crumbs').hidden = !crumbs.length;
   $('crumbs').querySelectorAll('[data-go]').forEach((b) => (b.onclick = async () => { const k = b.dataset.go; if (k === 'universe') { if (mode === 'system') await exitSystem(); if (mode === 'galaxy') exitGalaxy(); } if (k === 'galaxy' && mode === 'system') exitSystem(); if (k === 'system') unfocus(); }));
   $('tools2').hidden = !creating() || hands.mode === 'camera' && false;
+  $('timebar').hidden = !isSol(); syncTimebar();
 }
 
 const settled = (h) => h.active > 0.8 && performance.now() - (h.since || 0) > 400;
@@ -530,7 +532,7 @@ if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
   gsap.from('#title .ln > span', { yPercent: 110, duration: 1.2, ease: 'expo.out', stagger: 0.09, delay: 0.2 });
   gsap.from('#intro .lede, #intro .cta, #gestures li, #intro .fine', { y: 20, opacity: 0, duration: 1, ease: 'power3.out', stagger: 0.07, delay: 0.55 });
 }
-const status = $('status');
+const status = $('status'); const simDate = $('simDate');
 async function start(m) {
   document.querySelectorAll('.cta button').forEach((b) => (b.disabled = true));
   sfx.initAudio();
@@ -559,6 +561,8 @@ $('btnInput').onclick = switchInput;
 $('coachSkip').onclick = () => { $('coach').hidden = true; };
 $('btnFeed').onclick = () => { gsap.to(U.feed, { value: U.feed.value > 0.5 ? 0 : 1, duration: 0.8 }); $('btnFeed').classList.toggle('on', U.feed.value <= 0.5); };
 $('btnHole').onclick = toggleHoleTool;
+function syncTimebar() { const c = systemView.clock; document.querySelectorAll('#timebar [data-speed]').forEach((b) => b.classList.toggle('on', c.live ? b.dataset.speed === 'live' : +b.dataset.speed === c.speed)); }
+document.querySelectorAll('#timebar [data-speed]').forEach((b) => (b.onclick = () => { const c = systemView.clock; if (b.dataset.speed === 'live') c.live = true; else { c.live = false; c.speed = +b.dataset.speed; } syncTimebar(); }));
 $('btnClear').onclick = () => { bodies.clear(); say('Cleared', ''); };
 document.querySelectorAll('#places [data-place]').forEach((b) => (b.onclick = () => ({ playground: goPlayground, sol: goSolarSystem, universe: goUniverse })[b.dataset.place]()));
 
@@ -588,7 +592,7 @@ renderer.setAnimationLoop((now) => {
   creator.enabled = started && creating() && !focus;
   creator.tickMouse(now); creator.update(dt, now);
   coachTick(dt);
-  if (mode === 'system') systemView.update(dt);
+  if (mode === 'system') { systemView.update(dt); if (isSol()) { const t = (systemView.clock.live ? 'Now · ' : '') + formatDate(systemView.clock.date); if (simDate.textContent !== t) simDate.textContent = t; } }
   if (mode === 'system' || mode === 'playground' || !started) bodies.step(dt);
   bodyEvents();
   updateEffects(dt);
