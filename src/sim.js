@@ -108,7 +108,7 @@ export function makeGalaxy({ count, bodies }) {
       const dbd = b.xyz.sub(p); const r2b = dot(dbd, dbd).add(0.02); const rbd = sqrt(r2b);
       const k = select(m.lessThan(0), float(2.4), u.starPull); // black holes pull hard; stars swirl stardust around them
       force.addAssign(clamp(dbd.mul(am.mul(k).div(r2b.mul(rbd))), -25, 25));
-      grabAll.assign(max(grabAll, min(am.mul(exp(r2b.div(0.25).negate())).mul(0.6), 0.9).mul(select(m.lessThan(0), float(1), float(0.15)))));
+      grabAll.assign(max(grabAll, min(am.mul(exp(r2b.div(0.25).negate())).mul(0.6), 0.9).mul(select(m.lessThan(0), float(1), min(u.starPull.mul(0.2), 0.15)))));
       // black holes: stars spiral in as an accretion disk and vanish well outside the visible horizon (dark shadow)
       const isHole = select(m.lessThan(0), float(1), float(0));
       force.addAssign(cross(dbd.div(rbd), normalize(vec3(0, 1, 0.35))).mul(am.mul(1.4).div(r2b.add(0.05))).mul(isHole));

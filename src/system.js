@@ -27,7 +27,7 @@ export const SUN_MASS = Math.pow((2 * Math.PI / EARTH_YEAR) * 3.9, 2) * 3.9; // 
 
 // ---------------------------------------------------------------- our Solar System (compressed scale)
 export const SOL = {
-  name: 'Sol', real: true, star: { temp: 5778, radius: 1.0, texture: '4k_sun.jpg' },
+  name: 'Sol', real: true, star: { temp: 5778, radius: 1.0, texture: '4k_sun.jpg', real: true },
   planets: [
     { name: 'Mercury', map: '4k_mercury.jpg', r: 0.12, orbit: 2.2, airless: true },
     { name: 'Venus', map: '4k_venus_atmosphere.jpg', r: 0.22, orbit: 3.0, atmo: [1.0, 0.82, 0.5, 0.7] },
@@ -83,6 +83,12 @@ export function makeExoSystem(seed, name) {
 }
 export const exoName = (rnd) => SYL[Math.floor(rnd() * SYL.length)] + 'ler-' + (10 + Math.floor(rnd() * 990));
 
+/** start downloading our Solar System's textures in the background, so they're ready when you visit */
+export function prefetchSol() {
+  const maps = [SOL.star.texture, ...SOL.planets.flatMap((p) => [p.map, p.normal, p.height, typeof p.rings === 'string' ? p.rings : null, ...(p.moons || []).flatMap((m) => [m.map, m.height])]),
+    '8k_earth_clouds.jpg', '4k_earth_nightmap.jpg', '4k_earth_specular_map.jpg'].filter(Boolean);
+  maps.forEach((m, i) => setTimeout(() => tex(m, !/normal|height|specular/.test(m)), i * 120));
+}
 // ---------------------------------------------------------------- materials
 function sunMesh(def) {
   const col = uniform(blackbody(def.temp));
@@ -95,7 +101,11 @@ function sunMesh(def) {
   const boil = mx_noise_float(positionLocal.mul(40).add(time.mul(0.25))).mul(0.06).add(1);
   const limb = float(1).sub(float(0.6).mul(float(1).sub(mu)));
   const tint = mix(vec3(1.0, 0.55, 0.3), vec3(1), pow(mu, 0.5));
-  m.colorNode = vec3(col).mul(gray.mul(1.3).add(0.25)).mul(tint).mul(limb).mul(boil).mul(1.25);
+  // our Sun keeps the colour of its (NASA-based) texture: yellow-white centre, darker orange limb, boiling granulation;
+  // other stars are tinted by their temperature
+  const gran = mx_noise_float(positionLocal.mul(90).add(time.mul(0.4))).mul(0.5).add(0.5);
+  const realSun = surf.mul(1.55).mul(mix(vec3(1.0, 0.62, 0.32), vec3(1.0, 0.97, 0.9), pow(mu, 0.45))).mul(float(1).sub(float(0.72).mul(float(1).sub(pow(mu, 0.6))))).mul(gran.mul(0.16).add(0.92)).mul(boil);
+  m.colorNode = def.real ? realSun : vec3(col).mul(gray.mul(1.3).add(0.25)).mul(tint).mul(limb).mul(boil).mul(1.25);
   const mesh = new THREE.Mesh(SPHERE, m); mesh.scale.setScalar(def.radius);
   // corona + soft glare
   const cm = new THREE.SpriteNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
@@ -207,7 +217,7 @@ function planetMesh(p, sunColor) {
 }
 
 // ---------------------------------------------------------------- the view
-export function makeSystemView(scene) {
+export function makeSystemView(scene, camera, focusRef = { current: null }) {
   const root = new THREE.Group(); root.visible = false; scene.add(root);
   // Milky Way sky (we're inside a galaxy now)
   const sm = new THREE.MeshBasicNodeMaterial({ side: THREE.BackSide, depthWrite: false });
@@ -222,7 +232,12 @@ export function makeSystemView(scene) {
   const scale = { k: 0 }; const geo = (a, b) => a * Math.pow(b / a, scale.k); let sunR = 1;
   const UP = new THREE.Vector3(0, 1, 0), q = new THREE.Quaternion(), qs = new THREE.Quaternion(), v = new THREE.Vector3();
 
-  function clear() { objs.forEach((o) => { root.remove(o.group); root.remove(o.orbitLine); o.moons.forEach((m) => root.remove(m.group)); }); if (sun) root.remove(sun.group); objs = []; sun = null; }
+  // free everything a system built (materials compile GPU pipelines; the shared sphere and cached textures are kept)
+  function dispose(obj) { obj.traverse((m) => { if (m.geometry && m.geometry !== SPHERE) m.geometry.dispose(); const mats = Array.isArray(m.material) ? m.material : m.material ? [m.material] : []; mats.forEach((x) => x.dispose()); }); }
+  function clear() {
+    objs.forEach((o) => { root.remove(o.group); dispose(o.group); root.remove(o.orbitLine); dispose(o.orbitLine); o.moons.forEach((m) => { root.remove(m.group); dispose(m.group); }); });
+    if (sun) { root.remove(sun.group); dispose(sun.group); } objs = []; sun = null;
+  }
   function load(d) {
     clear(); def = d; t0 = performance.now() / 1000; clock.date = new Date(); craft.setVisible(!!d.real); sunR = d.star.radius; if (!d.real) scale.k = 0;
     sun = sunMesh(d.star); root.add(sun.group);
@@ -261,7 +276,7 @@ export function makeSystemView(scene) {
           m.spinner.rotation.y = Math.atan2(v.z, -v.x);   // tidally locked: the same face always toward Earth
         }
       }
-      craft.update(dt, performance.now() / 1000 - t0, byName, scale.k);
+      craft.update(dt, performance.now() / 1000 - t0, byName, scale.k, camera, focusRef.current);
       return;
     }
     const t = performance.now() / 1000 - t0;
@@ -281,7 +296,7 @@ export function makeSystemView(scene) {
     }
   }
   return {
-    root, sky, load, update, clock, scale,
+    root, sky, load, update, clock, scale, setLite: (on) => craft.setLite(on),
     get sunRadius() { return sunR; },
     realDistance: (name) => (def?.real && REAL[name]?.a ? sunDistance(name, clock.date) : 0),
     get def() { return def; },

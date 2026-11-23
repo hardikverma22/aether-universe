@@ -12,9 +12,11 @@ import { Bodies } from './bodies.js';
 import { makeNebula } from './nebula.js';
 import { Hands, CONNECTIONS } from './hands.js';
 import { makeUniverse, PALETTES, SHAPES } from './universe.js';
-import { makeSystemView, SOL, makeExoSystem, PLANET_FACTS, SUN_MASS } from './system.js';
+import { makeSystemView, SOL, makeExoSystem, PLANET_FACTS, SUN_MASS, prefetchSol } from './system.js';
 import { formatDate, moonKm } from './ephem.js';
+import { INFO, lightTime } from './facts.js';
 import { makeCreator } from './create.js';
+import { makeStudio } from './studio.js';
 import * as sfx from './audio.js';
 import { Rig } from './rig.js';
 
@@ -28,6 +30,7 @@ renderer.setSize(innerWidth, innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 0.9;
 await renderer.init();
+if (/[#&]s=/.test(location.hash)) { $('intro').querySelector('.lede').textContent = 'Someone made a little universe and sent it to you. Press start to see it, then make it yours.'; }
 if (!renderer.backend?.isWebGPUBackend) $('intro').querySelector('.lede').textContent = 'This needs WebGPU — try the latest Chrome, Edge or Safari.';
 
 const scene = new THREE.Scene();
@@ -56,7 +59,7 @@ const galaxy = makeGalaxy({ count: small ? 90000 : 240000, bodies: bodies.gpu })
 scene.add(galaxy.sprite);
 const nebula = makeNebula({ count: small ? 16000 : 40000 });
 scene.add(nebula.sprite);
-const systemView = makeSystemView(scene);
+const systemView = makeSystemView(scene, camera, { get current() { return focus; } });
 
 const pipeline = new THREE.RenderPipeline(renderer);
 const scenePass = pass(scene, camera);
@@ -76,7 +79,7 @@ pipeline.outputNode = Fn(() => {
 })();
 const LOOK = {
   playground: { exp: 0.95, glow: 0.7, thr: 0.3 }, universe: { exp: 0.95, glow: 0.8, thr: 0.22 }, galaxy: { exp: 0.95, glow: 0.8, thr: 0.22 },
-  system: { exp: 0.9, glow: 0.45, thr: 0.62 }, star: { exp: 0.5, glow: 0.35, thr: 0.85 }, planet: { exp: 0.95, glow: 0.35, thr: 0.7 },
+  system: { exp: 0.9, glow: 0.45, thr: 0.62 }, star: { exp: 0.62, glow: 0.4, thr: 0.9 }, planet: { exp: 0.95, glow: 0.35, thr: 0.7 },
 };
 function setLook(k, d = 1.4) { const L = LOOK[k]; gsap.to(renderer, { toneMappingExposure: L.exp, duration: d }); gsap.to(glowFx.strength, { value: L.glow, duration: d }); gsap.to(glowFx.threshold, { value: L.thr, duration: d }); }
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); sizeOverlay(); updateCover(); });
@@ -111,6 +114,7 @@ function galaxyLook(g) {
 function loadGalaxy(g) { galaxyLook(g); bodies.clear(); buildMarkers(g); }
 // the Playground: a soft stardust nebula at the origin; stars you make swirl the dust around them
 const PLAY = { pos: new THREE.Vector3(0, 0, 0), quat: new THREE.Quaternion().setFromEuler(new THREE.Euler(0.12, 0, 0.05)) };
+let studio = null;
 function loadPlayground() {
   const u = galaxy.u;
   u.center.value.copy(PLAY.pos); u.orient.value.setFromMatrix4(new THREE.Matrix4().makeRotationFromQuaternion(PLAY.quat));
@@ -121,6 +125,7 @@ function loadPlayground() {
   universe.group.visible = false; markers.visible = false; systemView.setVisible(false);
   galaxy.sprite.visible = true; galaxy.u.fade.value = 1; currentSystem = null; focus = null;
   rig.min = 3; rig.max = 30; rig.setFrom(PLAY.pos, new THREE.Vector3(0, 0.55, 1), PLAY_R);
+  studio?.applyTheme(studio.st.theme, true);
 }
 
 // ================================================================ coordinate mapping
@@ -268,7 +273,9 @@ async function exitSystem() {
   mode = 'galaxy'; refreshHUD(); await warp(0, 0.8);
 }
 const describe = (b) => {
+  if (b.isSun && isSol()) return ['The Sun', INFO['The Sun'].kind];
   if (b.isSun) return [currentSystem?.name === 'Sol' ? 'The Sun' : `${currentSystem?.name} (star)`, `${Math.round(currentSystem?.star.temp || 5778).toLocaleString()} K`];
+  if (isSol() && INFO[b.name]) return [b.name, INFO[b.name].kind];
   if (b.def) return [b.name, PLANET_FACTS[b.name] || b.fact || b.def.kind || ''];
   return b.type === 'hole' ? ['Black hole', `${b.mass.toFixed(1)} masses`] : b.type === 'star' ? [`${b.cls}-type star`, `${Math.round(b.temp).toLocaleString()} K · you made this`] : [({ terran: 'Ocean world', desert: 'Desert world', ice: 'Ice world', lava: 'Lava world', gas: 'Gas giant' })[b.kind] || 'World', 'you made this'];
 };
@@ -276,11 +283,11 @@ function focusOn(b) {
   if (!b || (mode !== 'system' && mode !== 'playground')) return;
   focus = b; rig.min = b.radius * 1.6;
   rig.goal.radius = focusDist(b);
-  const [t, sub] = describe(b); say(t, sub, true); refreshHUD(); setLook(b.isSun || b.type === 'star' ? 'star' : 'planet');
+  const [t, sub] = describe(b); say(t, sub, true); refreshHUD(); showInfo(b); setLook(b.isSun || b.type === 'star' ? 'star' : 'planet');
   systemView.visitables.forEach((o) => o.orbitLine && gsap.to(o.orbitLine.material, { opacity: 0.025, duration: 1 }));
 }
 function unfocus() {
-  if (!focus) return; focus = null; hideCard();
+  if (!focus) return; focus = null; hideCard(); showInfo(null);
   systemView.visitables.forEach((o) => o.orbitLine && gsap.to(o.orbitLine.material, { opacity: 0.12, duration: 1 }));
   if (mode === 'system') { rig.min = 2.5 * Math.pow(0.004, systemView.scale.k); rig.goal.radius = viewR(); setLook('system'); } else { rig.min = 3; rig.goal.radius = PLAY_R; setLook('playground'); }
   refreshHUD();
@@ -325,7 +332,9 @@ function updateEffects(dt) {
 }
 function bodyEvents() {
   for (const ev of bodies.events.splice(0)) {
-    nebula.emitBurst(ev.pos, ev.into === 'hole' ? new THREE.Color(1, 0.55, 0.2) : ev.color || new THREE.Color(1, 1, 1), 700, 0.5);
+    // a soft puff, not a blinding cloud: several merges in a row used to pile up into white blobs
+    const c = (ev.into === 'hole' ? new THREE.Color(1, 0.55, 0.2) : (ev.color || new THREE.Color(1, 1, 1)).clone()).multiplyScalar(0.7);
+    nebula.emitBurst(ev.pos, c.multiplyScalar(0.7), ev.into === 'hole' ? 90 : 120 + Math.min(160, ev.mass * 400), 1.3);
     nova.chroma = Math.max(nova.chroma, 0.25); sfx.thump();
   }
 }
@@ -385,6 +394,32 @@ function buildLegend() {
     btn.onmouseenter = () => (legendHover = btn.dataset.n); btn.onmouseleave = () => (legendHover = null);
   });
 }
+// info panel: what you learn about the body you're looking at (our Solar System only)
+let infoFor = null, infoT = 0;
+function showInfo(b) {
+  const n = b ? nameOf(b) : null, data = n && isSol() ? INFO[n] : null; const el = $('info');
+  if (!data) { if (!el.hidden) gsap.to(el, { opacity: 0, x: -16, duration: 0.3, ease: 'power2.in', onComplete: () => { el.hidden = true; } }); infoFor = null; $('panel').style.visibility = ''; document.body.classList.remove('has-info'); return; }
+  infoFor = b; $('panel').style.visibility = 'hidden'; document.body.classList.add('has-info');
+  el.querySelector('.ikind').textContent = data.kind;
+  el.querySelector('.istats').innerHTML = data.stats.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('');
+  el.querySelector('.ifacts').innerHTML = data.facts.map((f) => `<li>${f}</li>`).join('');
+  const list = legendBodies(), i = list.findIndex((x) => nameOf(x) === n);
+  const prev = list[(i - 1 + list.length) % list.length], next = list[(i + 1) % list.length];
+  $('infoPrev').querySelector('b').textContent = nameOf(prev); $('infoNext').querySelector('b').textContent = nameOf(next);
+  $('infoPrev').onclick = () => focusOn(prev); $('infoNext').onclick = () => focusOn(next);
+  updateInfoLive(); el.hidden = false;
+  gsap.killTweensOf(el); gsap.fromTo(el, { opacity: 0, x: -18 }, { opacity: 1, x: 0, duration: 0.6, ease: 'power3.out' });
+  gsap.fromTo(el.querySelectorAll('.istats > div, .ilive, .ifacts li, .inav'), { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.5, ease: 'power3.out', stagger: 0.035, delay: 0.1 });
+}
+function updateInfoLive() {
+  if (!infoFor) return; const b = infoFor, n = nameOf(b), el = $('info').querySelector('.ilive'); const date = systemView.clock.date;
+  let t = '';
+  if (b.isSun) { const au = systemView.realDistance('Earth'); t = `Its light reaches Earth in ${lightTime(au)} right now.`; }
+  else if (b.parent) { const km = moonKm(date); t = `Now ${Math.round(km).toLocaleString()} km from Earth · its light reaches us in ${(km / 299792).toFixed(2)} s.`; }
+  else if (!b.def?.craft) { const au = systemView.realDistance(n); t = `Now ${au.toFixed(3)} AU (${Math.round(au * 149.6).toLocaleString()} million km) from the Sun · sunlight takes ${lightTime(au)} to get here.`; }
+  el.textContent = t; el.hidden = !t;
+}
+addEventListener('keydown', (e) => { if (!infoFor || !started) return; if (e.key === 'ArrowRight') $('infoNext').click(); if (e.key === 'ArrowLeft') $('infoPrev').click(); });
 let legendT = 0;
 function updateLegend(dt) {
   buildLegend(); if ($('legend').hidden) return;
@@ -395,7 +430,7 @@ function updateLegend(dt) {
     btn.classList.toggle('on', focus === b);
     if (legendT <= 0 && !b.isSun) btn.querySelector('em').textContent = distanceLabel(b);
   });
-  if (legendT <= 0) legendT = 0.5;
+  if (legendT <= 0) { legendT = 0.5; updateInfoLive(); }
 }
 function distanceLabel(b) {
   if (b.def?.craft) return b.host ? `at ${b.host}` : 'interstellar';
@@ -501,14 +536,19 @@ glc.addEventListener('wheel', (e) => {
 }, { passive: false });
 addEventListener('keydown', (e) => {
   if (!started) return;
-  if (e.key === 'Escape') goUp();
+  if (e.key === 'Escape') { if (!$('keys').hidden) { $('keys').hidden = true; return; } goUp(); }
   if (e.key === 'b' && creating()) toggleHoleTool();
   if (e.key === 'r') toggleRecord();
   if (e.key === 'v') $('btnFeed').click();
+  if (e.key === 'm') setSound(!muted);
+  if (e.key === '?') $('keys').hidden = !$('keys').hidden;
   if (e.key === 't') setTrueScale(systemView.scale.k < 0.5);
   if (e.key === '1') goPlayground(); if (e.key === '2') goSolarSystem(); if (e.key === '3') goUniverse();
 });
-function toggleHoleTool() { const on = creator.mouseTool !== 'hole'; creator.setTool(on ? 'hole' : null); $('btnHole').classList.toggle('on', on); if (on) say('Black hole', 'Click where it should appear'); }
+creator.blocked = (x, y) => { if (mode !== 'system') return false; const b = pickWorld(x, y); return !!b && !bodies.list.includes(b); };
+studio = makeStudio({ bodies, creator, galaxy, center: PLAY.pos, quat: PLAY.quat, say });
+function toggleHoleTool() {
+  if (mode === 'playground') { studio.setMake(creator.opt.make === 'hole' ? 'auto' : 'hole'); say(creator.opt.make === 'hole' ? 'Black holes' : 'Back to auto', creator.opt.make === 'hole' ? 'Every pinch or click makes a black hole' : 'Quick pinch for a planet, hold for a star'); return; } const on = creator.mouseTool !== 'hole'; creator.setTool(on ? 'hole' : null); $('btnHole').classList.toggle('on', on); if (on) say('Black hole', 'Click where it should appear'); }
 
 // ================================================================ recording (9:16)
 const rec = { on: false, r: null, cv: document.createElement('canvas') };
@@ -529,7 +569,7 @@ function toggleRecord() {
 
 // ================================================================ HUD: places, breadcrumb, one short panel, coach
 const PANEL = {
-  playground: { title: 'Playground', cam: ['🤏 <b>Pinch &amp; hold</b>, let go → star', '🤏 <b>Quick pinch</b> near a star → planet', '✊✊ <b>Two fists</b> together → black hole', '🤏 <b>Pinch a world</b> to grab and throw it'], mouse: ['<b>Hold</b> in space, release → star', '<b>Click</b> near a star → planet', '<b>Drag</b> a world to throw it', '<b>B</b> → black hole'] },
+  playground: { title: 'Playground', cam: ['🤏 <b>Pinch &amp; hold</b>, let go → star', '🤏 <b>Quick pinch</b> near a star → planet', '✊✊ <b>Two fists</b> together → black hole', '🤏 <b>Pinch a world</b> to grab and throw it'], mouse: ['<b>Hold</b> in space, release → star', '<b>Click</b> near a star → planet', '<b>Drag</b> a world to throw it', '<b>B</b> → black hole · <b>?</b> all shortcuts'] },
   system: { title: 'Star system', cam: ['🤏 <b>Pinch</b> to add planets and stars', '👉 <b>Point &amp; hold</b> a planet → close-up', '✋✋ <b>Both palms</b> → back'], mouse: ['<b>Hold / click</b> in space to add worlds', '<b>Click</b> a planet → close-up', '<b>Drag</b> to turn · <b>Esc</b> back'] },
   galaxy: { title: 'A galaxy', cam: ['✋ <b>Move your hand</b> through the stars', '👉 <b>Point &amp; hold</b> a glowing star system', '✋✋ <b>Both palms</b> → back'], mouse: ['<b>Move</b> through the stars', '<b>Click</b> a glowing star system', '<b>Esc</b> → back'] },
   universe: { title: 'The universe', cam: ['✋ <b>Open palm</b> turns the sky', '👉 <b>Point &amp; hold</b> a galaxy to fly in'], mouse: ['<b>Drag</b> to turn, <b>scroll</b> to zoom', '<b>Click</b> a galaxy to fly in'] },
@@ -551,8 +591,10 @@ function refreshHUD() {
   $('crumbs').innerHTML = crumbs.map(([k, n], i) => i < crumbs.length - 1 ? `<button data-go="${k}">${n}</button><span>›</span>` : `<b>${n}</b>`).join('');
   $('crumbs').hidden = !crumbs.length;
   $('crumbs').querySelectorAll('[data-go]').forEach((b) => (b.onclick = async () => { const k = b.dataset.go; if (k === 'universe') { if (mode === 'system') await exitSystem(); if (mode === 'galaxy') exitGalaxy(); } if (k === 'galaxy' && mode === 'system') exitSystem(); if (k === 'system') unfocus(); }));
-  $('tools2').hidden = !creating() || hands.mode === 'camera' && false;
-  $('timebar').hidden = !isSol(); syncTimebar();
+  $('tools2').hidden = !creating() || mode === 'playground';
+  $('studio').hidden = mode !== 'playground' || !started;
+  document.body.dataset.mode = mode;
+  $('timebar').hidden = !isSol(); syncTimebar(); $('credit').hidden = !isSol();
 }
 
 const settled = (h) => h.active > 0.8 && performance.now() - (h.since || 0) > 400;
@@ -605,6 +647,7 @@ function attract() {
   loadPlayground();
   const c = PLAY.pos.clone().add(new THREE.Vector3(1.4, 0, 0));
   rig.setFrom(c, new THREE.Vector3(0, 0.42, 1), 8.6);
+  bodies.calm = true; galaxy.u.starPull.value = 0;   // home: perfect orbits that never decay, stardust that doesn't clump
   const sun = bodies.add('star', c, new THREE.Vector3(), 1.9);
   [[1.15, 'lava', 0.4], [1.75, 'terran', 2.6], [2.45, 'ice', 4.4], [3.3, 'gas', 1.5]].forEach(([r, kind, a]) => {
     const p = c.clone().add(new THREE.Vector3(Math.cos(a) * r, 0, Math.sin(a) * r));
@@ -627,18 +670,20 @@ if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
 const status = $('status'); const simDate = $('simDate');
 async function start(m) {
   document.querySelectorAll('.cta button').forEach((b) => (b.disabled = true));
-  sfx.initAudio();
+  sfx.initAudio(); sfx.setMuted(muted);
   try { if (m === 'camera') { status.textContent = 'Waking the stars…'; await hands.initCamera(); updateCover(); } else hands.initMouse(glc); }
   catch (e) { console.warn(e); hands.initMouse(glc); banner('Camera unavailable — using the mouse. Allow camera access, then click 🖱 Mouse to switch.'); }
   gsap.to('#intro', { opacity: 0, duration: 0.9, ease: 'power2.inOut', onComplete: () => ($('intro').hidden = true) });
-  bodies.clear(); renderer.compute(galaxy.init); gsap.to(homeShift, { k: 0, duration: 1.6, ease: 'power2.inOut' }); gsap.to(rig.goal, { radius: PLAY_R, phi: 1.068, duration: 1.6, ease: 'power2.inOut' });
+  bodies.clear(); bodies.calm = false; galaxy.u.starPull.value = 0.75; renderer.compute(galaxy.init);
+  const shared = studio.loadFromHash(); gsap.to(homeShift, { k: 0, duration: 1.6, ease: 'power2.inOut' }); gsap.to(rig.goal, { radius: PLAY_R, phi: 1.068, duration: 1.6, ease: 'power2.inOut' });
   gsap.to(rig.target, { x: PLAY.pos.x, y: PLAY.pos.y, z: PLAY.pos.z, duration: 1.6, ease: 'power2.inOut' });
   started = true; $('hud').hidden = false; status.textContent = ''; updateInputButton(); refreshHUD();
   gsap.from('#panel, #tools, #places', { y: 12, opacity: 0, duration: 0.9, delay: 0.4 });
-  setTimeout(() => say('Your playground', 'Make anything — nothing can go wrong'), 900);
+  if (!shared) setTimeout(() => say('Your playground', 'Make anything. Open Customise on the right for more'), 900);
   coachFor('playground');
+  setTimeout(prefetchSol, 3000);
 }
-function updateInputButton() { $('btnInput').textContent = hands.mode === 'camera' ? '✋ Hands' : '🖱 Mouse'; $('btnInput').title = hands.mode === 'camera' ? 'Using your hands — click to use the mouse' : 'Using the mouse — click to use your hands'; }
+function updateInputButton() { $('btnFeed').hidden = hands.mode !== 'camera'; $('btnInput').textContent = hands.mode === 'camera' ? '✋ Hands' : '🖱 Mouse'; $('btnInput').title = hands.mode === 'camera' ? 'Using your hands — click to use the mouse' : 'Using the mouse — click to use your hands'; }
 function banner(text) { const b = $('banner'); b.textContent = text; b.hidden = !text; }
 async function switchInput() {
   if (hands.mode === 'camera') hands.initMouse(glc);
@@ -649,6 +694,10 @@ async function switchInput() {
 $('btnCam').onclick = () => start('camera');
 $('btnMouse').onclick = () => start('mouse');
 $('btnRec').onclick = toggleRecord;
+let muted = localStorage.getItem('aether.muted') === '1';
+function setSound(off) { muted = off; sfx.setMuted(off); localStorage.setItem('aether.muted', off ? '1' : '0'); $('btnSound').textContent = off ? 'Sound off' : 'Sound on'; $('btnSound').classList.toggle('dim', off); }
+$('btnSound').onclick = () => setSound(!muted);
+setSound(muted);
 $('btnInput').onclick = switchInput;
 $('coachSkip').onclick = () => { $('coach').hidden = true; };
 $('btnFeed').onclick = () => { gsap.to(U.feed, { value: U.feed.value > 0.5 ? 0 : 1, duration: 0.8 }); $('btnFeed').classList.toggle('on', U.feed.value <= 0.5); };
@@ -670,11 +719,25 @@ document.querySelectorAll('#places [data-place]').forEach((b) => (b.onclick = ()
 
 // ================================================================ loop
 let last = performance.now();
+// safety cutoff: if frames stay slow for a few seconds, drop the heavy extras so the device stays responsive
+const perf = { ema: 16, slow: 0, lite: false };
+function guard(raw, dt) {
+  if (document.hidden || raw > 1000) return;           // tab switches and stalls aren't a measure of steady load
+  perf.ema += (raw - perf.ema) * 0.05;
+  perf.slow = perf.ema > 48 ? perf.slow + dt : Math.max(0, perf.slow - dt * 2);
+  if (perf.slow > 3 && !perf.lite) setLite(true);
+}
+function setLite(on) {
+  perf.lite = on; systemView.setLite(on);
+  renderer.setPixelRatio(on ? 1 : Math.min(devicePixelRatio, 1.25)); renderer.setSize(innerWidth, innerHeight);
+  if (on) say('Lighter graphics', 'Your device was working hard, so a few extras are now off');
+}
 const FRAME_MS = 1000 / 61;
 const FAR = new THREE.Vector3(0, 0, 1e4);
 renderer.setAnimationLoop((now) => {
   if (now - last < FRAME_MS - 1) return;
-  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  const raw = now - last; const dt = Math.min(0.05, raw / 1000); last = now;
+  guard(raw, dt);
   hands.update(now, dt, videoToScreen, toWorld);
   handNavigation(dt);
   if (mode === 'system') systemView.update(dt);   // move the worlds first so the camera follows this frame's positions
@@ -707,7 +770,9 @@ renderer.setAnimationLoop((now) => {
     if (camera.near !== 0.02) { camera.near = 0.02; camera.updateProjectionMatrix(); }
     if (systemView.scale.k) { gsap.killTweensOf(systemView.scale); systemView.scale.k = 0; $('btnScale').classList.remove('on'); }
   }
-  if (mode === 'system' || mode === 'playground' || !started) bodies.step(dt);
+  const play = mode === 'playground' && started;
+  bodies.g = play ? studio.g : 1; bodies.trails.visible = !play || studio.trails;
+  if (mode === 'system' || mode === 'playground' || !started) bodies.step(play ? dt * studio.timeScale : dt);
   bodyEvents();
   updateEffects(dt);
   nebula.update(renderer, dt, now / 1000);
@@ -718,11 +783,12 @@ renderer.setAnimationLoop((now) => {
   recordFrame();
 });
 
+if (q.has('lite')) setLite(true);
 if (q.has('debug')) {
   const el = document.createElement('div'); el.id = 'debug'; el.style.cssText = 'position:fixed;top:8px;left:50%;transform:translateX(-50%);font:12px ui-monospace,monospace;color:#9fb4ff;z-index:9';
   document.body.append(el); let frames = 0, t = performance.now(), lastR = last;
   (function loop() { if (last !== lastR) { frames++; lastR = last; } const n = performance.now(); if (n - t > 500) { const st = hands.stats;
-    el.textContent = `render ${(frames * 1000 / (n - t)).toFixed(0)} fps · tracking ${(st.hz || 0).toFixed(0)} Hz · ${mode}${focus ? ' · ' + describe(focus)[0] : ''} · bodies ${bodies.list.length}`; frames = 0; t = n; }
+    el.textContent = `render ${(frames * 1000 / (n - t)).toFixed(0)} fps · frame ${perf.ema.toFixed(1)} ms${perf.lite ? ' · lite' : ''} · tracking ${(st.hz || 0).toFixed(0)} Hz · ${mode}${focus ? ' · ' + describe(focus)[0] : ''} · bodies ${bodies.list.length}`; frames = 0; t = n; }
     requestAnimationFrame(loop); })();
 }
-window.__aether = { renderer, galaxy, hands, camera, rig, universe, systemView, bodies, nebula, creator, enterGalaxy, exitGalaxy, enterSystem, exitSystem, goPlayground, goSolarSystem, goUniverse, focusOn, unfocus, goUp, get mode() { return mode; }, get current() { return current; }, get focus() { return focus; }, made };
+window.__aether = { renderer, galaxy, hands, camera, rig, universe, systemView, bodies, nebula, creator, enterGalaxy, exitGalaxy, enterSystem, exitSystem, goPlayground, goSolarSystem, goUniverse, focusOn, unfocus, goUp, get mode() { return mode; }, get current() { return current; }, get focus() { return focus; }, made, perf, setLite };

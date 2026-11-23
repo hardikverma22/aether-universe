@@ -49,7 +49,9 @@ export function makeNebula({ count = 40000 } = {}) {
   const fadeIn = smoothstep(1.0, 0.93, life), fadeOut = smoothstep(0.0, 0.35, life);
   mat.colorNode = vec4(CA.rgb, 1);
   mat.opacityNode = smoothstep(0.5, 0.0, length(uv().sub(0.5))).pow(1.6).mul(fadeIn).mul(fadeOut).mul(select(CA.a.equal(1), float(0.085), float(0.05)));
-  mat.scaleNode = VA.w.mul(0.3).add(0.1).mul(life.oneMinus().mul(1.8).add(0.7));
+  // dead puffs sit at the origin: give them zero size so they cost nothing (otherwise a camera near the origin
+  // draws 40,000 invisible full-screen quads)
+  mat.scaleNode = select(PA.w.greaterThan(0.0), VA.w.mul(0.3).add(0.1).mul(life.oneMinus().mul(1.8).add(0.7)), float(0));
   const sprite = new THREE.Sprite(mat); sprite.count = count; sprite.frustumCulled = false;
 
   let pending = null; // one emission per frame (merged), applied in update()

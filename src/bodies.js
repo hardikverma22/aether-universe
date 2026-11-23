@@ -4,7 +4,7 @@
 import * as THREE from 'three/webgpu';
 import {
   Fn, float, vec3, vec4, uniform, uniformArray, uv, length, smoothstep, mix, sin, atan, time, mx_noise_float, positionLocal,
-  normalWorld, dot, max, instancedBufferAttribute, normalize,
+  normalWorld, dot, max, instancedBufferAttribute, normalize, select,
 } from 'three/tsl';
 
 import { makeStarLook, makePlanetLook, planetRadius, PLANET_KINDS, blackbody, starTemp, spectralClass } from './looks.js';
@@ -19,6 +19,7 @@ const radiusOf = (b) => b.type === 'star' ? 0.09 + 0.08 * Math.cbrt(b.mass) : b.
 
 export class Bodies {
   constructor(scene) {
+    this.g = 1;   // gravity strength multiplier (Playground studio)
     this.scene = scene; this.list = []; this.center = new THREE.Vector3(); this.events = [];
     // central attractor (galactic core or a star-system's sun), visual size multiplier and escape radius
     this.coreMass = CORE_MASS; this.coreSoft = 1.2; this.sizeMul = 1; this.escape = 16;
@@ -34,7 +35,7 @@ export class Bodies {
     const tm = new THREE.SpriteNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
     tm.positionNode = T.xyz; tm.colorNode = vec4(TC, 1);
     tm.opacityNode = smoothstep(0.5, 0.0, length(uv().sub(0.5))).mul(T.w).mul(0.7);
-    tm.scaleNode = T.w.mul(0.028).add(0.004);
+    tm.scaleNode = select(T.w.greaterThan(0.0), T.w.mul(0.028).add(0.004), float(0));   // unused trail slots: zero size, no cost
     this.trails = new THREE.Sprite(tm); this.trails.count = MAX * TRAIL; this.trails.frustumCulled = false;
     scene.add(this.trails);
     this.frame = 0;
@@ -100,7 +101,7 @@ export class Bodies {
     const d = pos.clone().sub(anchor.pos); const r = Math.max(0.05, d.length());
     const t = new THREE.Vector3().crossVectors(d, viewDir).normalize();
     const eff = anchor.core ? this.coreMass * r * r * r / Math.pow(r * r + this.coreSoft, 1.5) : anchor.mass; // matches the softened core
-    return t.multiplyScalar(Math.sqrt(G * eff / r)).add(anchor.vel);
+    return t.multiplyScalar(Math.sqrt(G * this.g * eff / r)).add(anchor.vel);
   }
 
   nearest(pos, types, within = 1) {
@@ -113,10 +114,11 @@ export class Bodies {
     const L = this.list; const sub = 3, h = dt / sub;
     for (let s = 0; s < sub; s++) {
       for (const a of L) {
+        if (this.calm && a.type === 'star') { a.vel.set(0, 0, 0); continue; }   // calm (home screen): stars stay put
         const acc = new THREE.Vector3();
         const dc = this.center.clone().sub(a.pos); const rc2 = dc.lengthSq() + this.coreSoft; // soft core: weak tidal pull, so star systems stay intact
-        acc.addScaledVector(dc, G * this.coreMass / (rc2 * Math.sqrt(rc2)));
-        for (const b of L) { if (a === b) continue; const d = b.pos.clone().sub(a.pos); const r2 = d.lengthSq() + SOFT; acc.addScaledVector(d, G * b.mass / (r2 * Math.sqrt(r2))); }
+        acc.addScaledVector(dc, G * this.g * this.coreMass / (rc2 * Math.sqrt(rc2)));
+        for (const b of L) { if (a === b || (this.calm && b.type !== 'star')) continue; const d = b.pos.clone().sub(a.pos); const r2 = d.lengthSq() + SOFT; acc.addScaledVector(d, G * this.g * b.mass / (r2 * Math.sqrt(r2))); }
         a.vel.addScaledVector(acc.clampLength(0, 60), h);
       }
       for (const a of L) a.pos.addScaledVector(a.vel, h);
@@ -151,7 +153,7 @@ export class Bodies {
     });
     for (let k = 0; k < MAX; k++) {
       const b = L[k], v = this.gpu.array[k];
-      if (b) v.set(b.pos.x, b.pos.y, b.pos.z, b.type === 'hole' ? -b.mass : b.mass * (b.type === 'planet' ? 0.3 : 1)); else v.set(0, 0, 9999, 0);
+      if (b) v.set(b.pos.x, b.pos.y, b.pos.z, b.type === 'hole' ? -b.mass : b.type === 'planet' ? 0 : b.mass);   // planets don't gather stardust (it clumped into glowing balls) else v.set(0, 0, 9999, 0);
     }
     this.trailAttr.needsUpdate = true; this.trailCol.needsUpdate = true;
   }

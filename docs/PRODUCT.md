@@ -16,8 +16,8 @@
 
 ## The 3 places
 
-1. **Playground** (the heart, where you land first). Empty, beautiful space filled with soft stardust. You make whatever you want. Nothing can go wrong.
-2. **Real Solar System.** Our Sun and planets, made from real NASA-based images. You can create here too: add a fifth giant, drop a black hole in, and watch the real planets react.
+1. **Playground** (the heart, where you land first). Empty, beautiful space filled with soft stardust. You make whatever you want, customise what you make and how physics behaves, start from scenes, and share a link to your creation. Nothing can go wrong.
+2. **Real Solar System.** Explore-only: our Sun, planets, Moon and spacecraft where they really are today, from NASA-based images and data. Click anything to learn about it; switch to true scale to feel how empty space is.
 3. **The Universe** (to wander). Hundreds of galaxies; fly into any of them and create inside their star systems.
 
 A small breadcrumb always shows where you are. Both open hands (or Esc) always take you back.
