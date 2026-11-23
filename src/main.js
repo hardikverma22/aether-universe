@@ -723,7 +723,7 @@ async function start(m) {
   document.querySelectorAll('.cta button').forEach((b) => (b.disabled = true));
   sfx.initAudio(); sfx.setMuted(muted);
   try { if (m === 'camera') { status.textContent = 'Waking the stars…'; await hands.initCamera(); updateCover(); } else hands.initMouse(glc); }
-  catch (e) { console.warn(e); hands.initMouse(glc); banner(cameraProblem(e)); }
+  catch (e) { console.warn(e); hands.initMouse(glc); banner(cameraProblem(e)); waitForCamera(e); }
   gsap.to('#intro', { opacity: 0, duration: 0.9, ease: 'power2.inOut', onComplete: () => ($('intro').hidden = true) });
   bodies.clear(); bodies.calm = false; galaxy.u.starPull.value = 0.75; renderer.compute(galaxy.init);
   const shared = studio.loadFromHash(); gsap.to(homeShift, { k: 0, duration: 1.6, ease: 'power2.inOut' }); gsap.to(rig.goal, { radius: PLAY_R, phi: 1.068, duration: 1.6, ease: 'power2.inOut' });
@@ -735,11 +735,26 @@ async function start(m) {
   setTimeout(prefetchSol, 3000);
 }
 function updateInputButton() { $('btnFeed').hidden = hands.mode !== 'camera'; $('btnInput').textContent = hands.mode === 'camera' ? '✋ Hands' : '🖱 Mouse'; $('btnInput').title = hands.mode === 'camera' ? 'Using your hands — click to use the mouse' : 'Using the mouse — click to use your hands'; }
+// when another app has the camera, keep checking quietly and switch to hands the moment it's free (for 3 minutes)
+let camWait = null;
+function waitForCamera(e) {
+  if (e?.name !== 'NotReadableError' && e?.name !== 'TrackStartError') return;
+  clearInterval(camWait); const t0 = performance.now();
+  camWait = setInterval(async () => {
+    if (hands.mode === 'camera' || performance.now() - t0 > 180000) { clearInterval(camWait); camWait = null; return; }
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({ video: true }); s.getTracks().forEach((t) => t.stop());
+      clearInterval(camWait); camWait = null;
+      await hands.initCamera(); updateCover(); updateInputButton(); refreshHUD();
+      banner(''); say('Camera ready', 'Using your hands now');
+    } catch { /* still busy */ }
+  }, 4000);
+}
 // say what actually went wrong with the camera, and how to fix it
 function cameraProblem(e) {
   const fix = 'Using the mouse for now; press Mouse (top right) to try your hands again.';
   switch (e?.name) {
-    case 'NotReadableError': case 'TrackStartError': return `Another app is using your camera. Close it (video calls, Photo Booth), then try again. ${fix}`;
+    case 'NotReadableError': case 'TrackStartError': return `Another app is using your camera. Close it (video calls, Photo Booth) and Aether will switch to your hands by itself. ${fix}`;
     case 'NotAllowedError': case 'SecurityError': return `Camera access is blocked. Allow it from the camera icon in the address bar. ${fix}`;
     case 'NotFoundError': case 'OverconstrainedError': return `No camera found. Plug one in, or keep playing with the mouse.`;
     default: return `The camera didn't start${e?.name ? ` (${e.name})` : ''}. ${fix}`;
@@ -749,7 +764,7 @@ function banner(text) { const b = $('banner'); b.textContent = text; b.hidden = 
 $('banner').onclick = () => banner('');
 async function switchInput() {
   if (hands.mode === 'camera') hands.initMouse(glc);
-  else { try { if (!hands.worker) await hands.initCamera(); else hands.mode = 'camera'; updateCover(); banner(''); } catch (e) { console.warn(e); hands.initMouse(glc); banner(cameraProblem(e)); } }
+  else { try { if (!hands.worker) await hands.initCamera(); else hands.mode = 'camera'; updateCover(); banner(''); } catch (e) { console.warn(e); hands.initMouse(glc); banner(cameraProblem(e)); waitForCamera(e); } }
   updateInputButton(); refreshHUD(); coach.seen.clear(); coachFor(mode === 'flying' ? 'playground' : isSol() ? 'sol' : mode);
 }
 
