@@ -207,7 +207,10 @@ function pickWorld(px, py, extra = 0) {
   let best = null, bd = 1e9;
   for (const b of cands) {
     const s = toScreen(b.pos); if (!s.front) continue;
-    const rpx = Math.max(16 + extra, (b.radius / camera.position.distanceTo(b.pos)) * innerHeight * 1.2);
+    const realPx = (b.radius / camera.position.distanceTo(b.pos)) * innerHeight * 1.2;
+    // spacecraft sit on top of their planet in the overview: only pickable while visiting that planet, or when big enough to see
+    if (b.def?.craft && focus !== b && focus?.name !== b.host && realPx < 8) continue;
+    const rpx = Math.max(16 + extra, realPx);
     const d = Math.hypot(s.x - px, s.y - py); if (d < rpx && d < bd) { bd = d; best = b; }
   }
   return best;
