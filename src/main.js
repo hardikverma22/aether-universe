@@ -612,10 +612,11 @@ function recordFrame() {
 function toggleRecord() {
   const btn = $('btnRec'); if (rec.on) { rec.r.stop(); return; }
   const type = ['video/mp4;codecs=avc1', 'video/webm;codecs=vp9', 'video/webm'].find((t) => MediaRecorder.isTypeSupported(t));
-  const chunks = []; rec.r = new MediaRecorder(rec.cv.captureStream(60), { mimeType: type, videoBitsPerSecond: 14e6 });
+  const chunks = []; rec.r = new MediaRecorder(rec.cv.captureStream(60), { mimeType: type, videoBitsPerSecond: 8e6 });
   rec.r.ondataavailable = (e) => chunks.push(e.data);
-  rec.r.onstop = () => { rec.on = false; btn.classList.remove('on'); btn.textContent = '● Record'; const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(chunks, { type })); a.download = `aether-${Date.now()}.${type.includes('mp4') ? 'mp4' : 'webm'}`; a.click(); };
-  rec.r.start(250); rec.on = true; btn.classList.add('on'); btn.textContent = '■ Stop';
+  rec.r.onstop = () => { rec.on = false; clearInterval(rec.tick); btn.classList.remove('on'); btn.textContent = '● Record'; const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(chunks, { type })); a.download = `aether-${Date.now()}.${type.includes('mp4') ? 'mp4' : 'webm'}`; a.click(); };
+  rec.r.start(250); rec.on = true; btn.classList.add('on'); btn.textContent = '■ Stop 0:00';
+  const t0 = performance.now(); rec.tick = setInterval(() => { const s = Math.floor((performance.now() - t0) / 1000); btn.textContent = `■ Stop ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }, 500);
 }
 
 // ================================================================ HUD: places, breadcrumb, one short panel, coach
