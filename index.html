@@ -4,7 +4,10 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="theme-color" content="#03030a" />
-  <title>Aether — hold a galaxy in your hands</title>
+  <title>Aether — make a universe with your hands</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@800&family=Onest:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/src/style.css" />
 </head>
 <body>
@@ -12,27 +15,43 @@
   <canvas id="overlay"></canvas>
 
   <section id="intro">
-    <p class="eyebrow">A WebGPU experiment</p>
-    <h1 id="title">Aether</h1>
-    <p class="lede">Two hundred thousand stars, and your hands.</p>
-    <div class="cta">
-      <button id="btnCam" class="primary">Use my hands</button>
-      <button id="btnMouse">Use the mouse</button>
+    <div class="hero">
+      <h1 id="title"><span class="ln"><span>Make stars</span></span><span class="ln"><span>with your hands.</span></span></h1>
+      <p class="lede">Pull planets out of stardust, throw them into orbit and feed a black hole. Right in your browser, with just your webcam.</p>
+      <div class="cta">
+        <button id="btnCam" class="primary">Start with my hands</button>
+        <button id="btnMouse" class="quiet">Use the mouse <span aria-hidden="true">→</span></button>
+      </div>
+      <ul id="gestures" aria-label="Gestures">
+        <li data-g="star"><svg viewBox="0 0 100 100" aria-hidden="true"></svg><b>Pinch and hold</b><span>a star</span></li>
+        <li data-g="planet"><svg viewBox="0 0 100 100" aria-hidden="true"></svg><b>Quick pinch</b><span>a planet</span></li>
+        <li data-g="hole"><svg viewBox="0 0 100 100" aria-hidden="true"></svg><b>Two fists</b><span>a black hole</span></li>
+      </ul>
     </div>
-    <p class="fine">Hand tracking runs on your device. The camera image never leaves this page.</p>
+    <p class="fine">Hand tracking runs on your device. Your camera image never leaves this page.</p>
   </section>
 
   <div id="hud" hidden>
-    <ul id="guide">
-      <li><b>Sweep</b> to blow</li>
-      <li><b>Pinch</b> to gather</li>
-      <li><b>Point</b> to draw a comet</li>
-      <li><b>Fist → open</b> to explode</li>
-      <li><b>Both hands together</b>, then pull apart</li>
-    </ul>
-    <div id="tools"><button id="btnFeed" title="Show or hide yourself (V)">You</button><button id="btnRec" title="Record a 9:16 clip (R)">● Record</button></div>
+    <nav id="places">
+      <button data-place="playground">✦ Playground</button>
+      <button data-place="sol">☀ Solar System</button>
+      <button data-place="universe">◌ Universe</button>
+    </nav>
+    <nav id="crumbs" hidden></nav>
+    <div id="tools"><button id="btnInput" title="Switch between hands and mouse">✋ Hands</button><button id="btnFeed" title="Show yourself behind the scene (V)">You</button><button id="btnRec" title="Record a 9:16 clip (R)">● Record</button></div>
+    <div id="timebar" hidden><span id="simDate"></span><button data-speed="live">Live</button><button data-speed="1">1 day/s</button><button data-speed="30">1 month/s</button><span class="gap"></span><button id="btnScale" title="Real sizes and distances (T)">True scale</button></div>
+    <div id="tools2" hidden><button id="btnHole" title="Black hole (B)">◉ Black hole</button><button id="btnClear">Clear</button></div>
+    <aside id="panel"><div id="panelTitle"></div><ul id="guide"></ul></aside>
+    <div id="coach" hidden><div class="cstep"></div><div class="ctext"></div><div class="cdots"></div><button id="coachSkip">Skip</button></div>
+    <aside id="legend" hidden aria-label="Bodies in the Solar System"><ul id="legendList"></ul></aside>
+    <div id="banner" hidden></div>
+    <div id="label" hidden></div>
+    <div id="toast" aria-live="polite"><div class="tname"></div><div class="tsub"></div></div>
+    <div id="exitRing"></div>
     <div id="status"></div>
+    <p id="credit">Textures: Solar System Scope (CC BY 4.0), from NASA imagery · Moon relief: NASA SVS/LRO · Spacecraft and Bennu: NASA 3D Resources · Positions: astronomy-engine</p>
   </div>
+  <div id="warp"></div>
   <video id="video" playsinline muted hidden></video>
   <script type="module" src="/src/main.js"></script>
 </body>

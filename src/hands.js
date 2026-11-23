@@ -21,16 +21,17 @@ class OneEuro {
 // Debounced on/off gesture with hysteresis
 class Latch {
   constructor(on, off) { this.onT = on; this.offT = off; this.on = false; this.v = 0; }
-  update(raw) { if (!this.on && raw > this.onT) this.on = true; else if (this.on && raw < this.offT) this.on = false; this.v += ((this.on ? 1 : 0) - this.v) * 0.5; return this.v; }
+  update(raw) { if (!this.on && raw > this.onT) this.on = true; else if (this.on && raw < this.offT) this.on = false; this.v += ((this.on ? 1 : 0) - this.v) * 0.8; return this.v; }
 }
 
 function makeHand() {
   return {
     active: 0, pos: new THREE.Vector3(), vel: new THREE.Vector3(), pinch: 0, fist: 0, open: 0, point: 0, burst: 0,
     lm: null, screen: null, world: Array.from({ length: 21 }, () => new THREE.Vector3(0, 0, 99)),
+    draw: null, sVel: Array.from({ length: 21 }, () => ({ x: 0, y: 0 })), // smoothed + predicted landmarks for drawing
     target: new THREE.Vector3(), mvel: new THREE.Vector3(), tResult: 0, _fistT: -1e9, _burstT: -1e9,
     f: [new OneEuro(), new OneEuro(), new OneEuro(0.8, 0.4)],
-    lat: { pinch: new Latch(0.7, 0.4), fist: new Latch(0.72, 0.45), point: new Latch(0.7, 0.4) },
+    lat: { pinch: new Latch(0.6, 0.35), fist: new Latch(0.65, 0.4), point: new Latch(0.62, 0.38) },   // quick to engage, hysteresis to stay stable
   };
 }
 
@@ -56,6 +57,7 @@ export class Hands {
 
   initMouse(el) {
     this.mode = 'mouse';
+    if (this._mouseBound) return; this._mouseBound = true;
     const h = this.hands[0]; const m = (this.mouse = { x: 0.5, y: 0.5, down: false, downT: 0, inside: false });
     const at = (e) => { m.x = e.clientX / innerWidth; m.y = e.clientY / innerHeight; m.inside = true; };
     el.addEventListener('pointermove', at);
@@ -101,10 +103,12 @@ export class Hands {
     const size = dist(mir[0], mir[9]) + 1e-4;
     const ext = (tip) => dist(mir[tip], mir[0]) / size;              // finger extension
     const tips = (ext(8) + ext(12) + ext(16) + ext(20)) / 4;
-    const fistRaw = 1 - ss(1.05, 1.5, tips);
-    const openRaw = ss(1.55, 1.95, tips);
-    const pinchRaw = (1 - ss(0.22, 0.5, dist(mir[4], mir[8]) / size)) * (1 - fistRaw);
-    const pointRaw = ss(1.7, 2.0, ext(8)) * (1 - ss(1.2, 1.5, (ext(12) + ext(16) + ext(20)) / 3)) * (1 - pinchRaw);
+    // pointing = index straight, the other three curled; it takes priority over fist and pinch
+    const others = (ext(12) + ext(16) + ext(20)) / 3;
+    const pointRaw = ss(1.65, 1.95, ext(8)) * (1 - ss(1.2, 1.5, others)) * ss(0.35, 0.6, dist(mir[4], mir[8]) / size);
+    const fistRaw = (1 - ss(1.05, 1.5, tips)) * (1 - ss(1.35, 1.65, ext(8))) * (1 - pointRaw);   // a fist needs the index curled too
+    const openRaw = ss(1.55, 1.95, tips) * (1 - pointRaw);
+    const pinchRaw = (1 - ss(0.22, 0.5, dist(mir[4], mir[8]) / size)) * (1 - fistRaw) * (1 - pointRaw);
     h.pinch = h.lat.pinch.update(pinchRaw); h.fist = h.lat.fist.update(fistRaw); h.point = h.lat.point.update(pointRaw);
     h.open += (openRaw - h.open) * 0.6;
     const now = performance.now();
@@ -124,8 +128,12 @@ export class Hands {
     else { h.mvel.lerp(target.clone().sub(h.target).divideScalar(Math.max((now - h.tResult) / 1000, 1 / 120)).clampLength(0, 25), 0.6); h.target.copy(target); }
     h.tResult = now;
     // all landmarks -> screen + world (overlay + whole-hand colliders)
-    h.screen = mir.map((p) => videoToScreen(p.x, p.y));
+    const ns = mir.map((p) => videoToScreen(p.x, p.y));
+    if (h.screen && wasActive) ns.forEach((p, i) => { const v = h.sVel[i]; v.x += ((p.x - h.screen[i].x) / dt - v.x) * 0.5; v.y += ((p.y - h.screen[i].y) / dt - v.y) * 0.5; });
+    else h.sVel.forEach((v) => { v.x = 0; v.y = 0; });
+    h.screen = ns; if (!h.draw || !wasActive) h.draw = ns.map((p) => ({ ...p }));
     h.screen.forEach((s, i) => { const w = toWorld(s.x, s.y, fd - mir[i].z * 4); if (wasActive) h.world[i].lerp(w, 0.7); else h.world[i].copy(w); });
+    if (h.active <= 0.05) h.since = performance.now(); // when this hand (re)appeared
     h.active = Math.min(1, h.active + dt * 6); h.lm = mir;
   }
 
@@ -137,6 +145,11 @@ export class Hands {
       const age = Math.min((now - h.tResult) / 1000, 0.06);
       h.pos.lerp(h.target.clone().addScaledVector(h.mvel, age), 1 - Math.exp(-dt * 30));
       h.vel.lerp(h.mvel, 1 - Math.exp(-dt * 20));
+      // drawn skeleton: extrapolate each joint along its velocity, then glide toward it (smooth at 60 fps)
+      if (h.screen && h.draw) {
+        const k = 1 - Math.exp(-dt * 24);
+        for (let i = 0; i < 21; i++) { const p = h.screen[i], v = h.sVel[i], d = h.draw[i]; d.x += (p.x + v.x * age - d.x) * k; d.y += (p.y + v.y * age - d.y) * k; }
+      }
     }
   }
 
