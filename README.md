@@ -7,7 +7,7 @@
 Pinch stardust into a star, throw a planet into orbit, hold up a peace sign and watch a black hole swallow it all.<br>
 Then visit our real Solar System, with every planet where it is today. All in your browser, with just a webcam.
 
-**[▶ Try it live](https://aether-hands.vercel.app)** · runs in Chrome, Edge or Safari 26+ (WebGPU)
+**[▶ Try it live](https://aether-universe-galaxy.vercel.app)** · runs in Chrome, Edge or Safari 26+ (WebGPU)
 
 <img src="docs/images/home.jpg" alt="Aether home screen: 'Make stars with your hands' beside a live solar system in a cloud of stardust" width="100%">
 
