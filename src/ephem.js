@@ -5,6 +5,13 @@ import * as A from 'astronomy-engine';
 import * as THREE from 'three/webgpu';
 
 const OBL = 23.4393 * Math.PI / 180;
+/** true-scale units: scene units per astronomical unit (Earth's compact orbit is 3.9) */
+export const AU = 3.9;
+const KM = AU / 149597870.7;
+const RADIUS_KM = { Sun: 695700, Mercury: 2439.7, Venus: 6051.8, Earth: 6371, Moon: 1737.4, Mars: 3389.5, Jupiter: 69911, Saturn: 58232, Uranus: 25362, Neptune: 24622 };
+export const trueRadius = (name) => RADIUS_KM[name] * KM;
+export const kmToScene = (km) => km * KM;
+export const MOON_DIST = 384400 * KM;
 const D2R = Math.PI / 180;
 /** equatorial J2000 vector -> scene vector */
 export function eqjToScene(x, y, z, out = new THREE.Vector3()) {
@@ -46,6 +53,10 @@ export function orbitPath(name, date, orbit, n = 256) {
   for (let i = 0; i <= n; i++) pts.push(planetPos(name, new Date(date.getTime() + (i / n) * P * 864e5), orbit));
   return pts;
 }
+/** real Earth–Moon distance, km */
+export const moonKm = (date) => { const v = A.GeoMoon(date); return Math.hypot(v.x, v.y, v.z) * 149597870.7; };
+/** real distance from the Sun, AU */
+export const sunDistance = (name, date) => A.HelioDistance(A.Body[name], date);
 /** Earth's prime-meridian angle from the equinox, radians (apparent sidereal time) */
 export const earthSpin = (date) => A.SiderealTime(date) * 15 * D2R;
 export function formatDate(d) { return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }); }

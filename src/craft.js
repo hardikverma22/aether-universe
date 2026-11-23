@@ -3,7 +3,7 @@
 import * as THREE from 'three/webgpu';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
-import { poleToScene } from './ephem.js';
+import { poleToScene, AU, kmToScene } from './ephem.js';
 import { mulberry32 } from './universe.js';
 
 const draco = new DRACOLoader().setDecoderPath('/draco/');
@@ -59,21 +59,24 @@ export function makeCraft(root) {
   }).catch((e) => console.warn('bennu', e));
 
   const v = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
-  function update(dt, t, bodiesByName) {
+  function update(dt, t, bodiesByName, k = 0) {
+    const geo = (a, b) => a * Math.pow(b / a, k);
     for (const it of items) {
-      if (it.far) { it.pos.copy(poleToScene(...it.far)).multiplyScalar(it.dist); }
+      let size = 1;
+      if (it.far) { const d = geo(it.dist, 163 * AU); it.pos.copy(poleToScene(...it.far)).multiplyScalar(d); size = d / it.dist; }
       else {
-        const host = bodiesByName[it.host]; if (!host) continue;
-        if (it.l2) { v.copy(host.pos).normalize().multiplyScalar(it.l2); it.pos.copy(host.pos).add(v); }
+        const host = bodiesByName[it.host]; if (!host) continue; size = host.radius / host.r0;   // keep the same size relative to its planet
+        if (it.l2) { v.copy(host.pos).normalize().multiplyScalar(geo(it.l2, kmToScene(1.5e6))); it.pos.copy(host.pos).add(v); }
         else {
           const a = (it.phase || 0) + t * (2 * Math.PI / it.period), r = host.radius * it.orbit;
           if (it.polar) v.set(Math.cos(a) * r, Math.sin(a) * r, 0); else v.set(Math.cos(a) * r, Math.sin(a) * r * Math.sin(it.incl), Math.sin(a) * r * Math.cos(it.incl));
           it.pos.copy(host.pos).add(v);
         }
       }
-      if (it.group) { it.group.position.copy(it.pos); it.group.rotation.y += dt * 0.15; }
+      it.radius = it.size * 0.6 * size;
+      if (it.group) { it.group.position.copy(it.pos); it.group.scale.setScalar(size); it.group.rotation.y += dt * 0.15; }
     }
-    if (belt) belt.rotation.y -= dt * 0.004;
+    if (belt) { belt.rotation.y -= dt * 0.004; belt.scale.setScalar(geo(1, 2.7 * AU / 6)); }
   }
   return { group, items, update, setVisible(on) { group.visible = on; } };
 }

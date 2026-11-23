@@ -6,7 +6,7 @@ import {
   Fn, float, vec2, vec3, vec4, uniform, texture, uv, length, normalize, dot, max, mix, smoothstep, pow, abs, atan, exp, clamp,
   time, positionLocal, positionWorld, cameraPosition, mx_noise_float, select, sin, cross, modelWorldMatrix,
 } from 'three/tsl';
-import { REAL, poleToScene, planetPos, moonOffset, orbitPath, earthSpin } from './ephem.js';
+import { REAL, poleToScene, planetPos, moonOffset, orbitPath, earthSpin, AU, trueRadius, MOON_DIST, sunDistance } from './ephem.js';
 import { makeCraft } from './craft.js';
 import { blackbody, makePlanetLook } from './looks.js';
 import { mulberry32 } from './universe.js';
@@ -121,7 +121,7 @@ function planetMesh(p, sunColor) {
   const NdL = dot(N, L); const day = smoothstep(-0.06, 0.22, NdL);
   const sun = uniform(sunColor.clone());
   const group = new THREE.Group(); const spinner = new THREE.Group(); group.add(spinner);
-  const ringAxis = uniform(new THREE.Vector3(0, 1, 0));
+  const ringAxis = uniform(new THREE.Vector3(0, 1, 0)); const radU = uniform(p.r);   // current world radius (changes with true scale)
   let core;
   if (p.lava) {
     const fake = { pos: new THREE.Vector3(), radius: 1 };
@@ -152,7 +152,7 @@ function planetMesh(p, sunColor) {
     }
     if (p.rings) { // the rings' shadow across the planet
       const P0 = positionWorld.sub(center); const t = dot(P0, ringAxis).negate().div(dot(L, ringAxis));
-      const hit = P0.add(L.mul(t)); const d = length(hit).div(p.r).sub(RING_IN).div(RING_OUT - RING_IN);
+      const hit = P0.add(L.mul(t)); const d = length(hit).div(radU).sub(RING_IN).div(RING_OUT - RING_IN);
       const ra = texture(tex(p.rings), vec2(clamp(d, 0.001, 0.999), 0.5)).a;
       const inRing = t.greaterThan(0).and(d.greaterThan(0)).and(d.lessThan(1));
       lightAmt = lightAmt.mul(select(inRing, float(1).sub(ra.mul(0.8)), float(1)));
@@ -193,7 +193,7 @@ function planetMesh(p, sunColor) {
     const ringTex = texture(tex(typeof p.rings === 'string' ? p.rings : '2k_saturn_ring_alpha.png'), vec2(clamp(t, 0.001, 0.999), 0.5));
     // planet's shadow on the rings
     const toC = center.sub(positionWorld); const tt = dot(toC, L); const closest = length(toC.sub(L.mul(tt)));
-    const shadow = select(tt.greaterThan(0).and(closest.lessThan(float(p.r))), float(0.03), float(1));
+    const shadow = select(tt.greaterThan(0).and(closest.lessThan(radU)), float(0.03), float(1));
     // lit face vs unlit face: from the dark side you only see light scattered through the thinner parts
     const litFace = dot(ringAxis, L).mul(dot(ringAxis, V)).greaterThan(0);
     const through = float(1).sub(ringTex.a).mul(0.9).add(0.08);
@@ -203,7 +203,7 @@ function planetMesh(p, sunColor) {
     group.add(ring);
   }
   group.rotation.z = p.tilt || 0;   // procedural worlds: a simple axial tilt (real worlds get their true pole in the view)
-  return { group, spinner, center, ringAxis };
+  return { group, spinner, center, ringAxis, radU };
 }
 
 // ---------------------------------------------------------------- the view
@@ -218,22 +218,24 @@ export function makeSystemView(scene) {
   const craft = makeCraft(root); craft.setVisible(false); const byName = {};
   // the clock for our real Solar System: starts at this moment; `speed` = simulated days per real second (0 = live, real time)
   const clock = { date: new Date(), speed: 1, live: false };
+  // 0 = compact (everything visible at once), 1 = true scale (real sizes and distances, 1 AU = AU scene units); blended geometrically
+  const scale = { k: 0 }; const geo = (a, b) => a * Math.pow(b / a, scale.k); let sunR = 1;
   const UP = new THREE.Vector3(0, 1, 0), q = new THREE.Quaternion(), qs = new THREE.Quaternion(), v = new THREE.Vector3();
 
   function clear() { objs.forEach((o) => { root.remove(o.group); root.remove(o.orbitLine); o.moons.forEach((m) => root.remove(m.group)); }); if (sun) root.remove(sun.group); objs = []; sun = null; }
   function load(d) {
-    clear(); def = d; t0 = performance.now() / 1000; clock.date = new Date(); craft.setVisible(!!d.real);
+    clear(); def = d; t0 = performance.now() / 1000; clock.date = new Date(); craft.setVisible(!!d.real); sunR = d.star.radius; if (!d.real) scale.k = 0;
     sun = sunMesh(d.star); root.add(sun.group);
     if (d.real) sun.group.children[0].quaternion.setFromUnitVectors(UP, poleToScene(...REAL.Sun.pole));
     d.planets.forEach((p, i) => {
       const pm = planetMesh(p, sun.color);
-      const o = { def: p, name: p.name, group: pm.group, spinner: pm.spinner, center: pm.center, ringAxis: pm.ringAxis, radius: p.r, pos: new THREE.Vector3(), phase: p.phase ?? i * 2.4, moons: [] };
+      const o = { def: p, name: p.name, group: pm.group, spinner: pm.spinner, center: pm.center, ringAxis: pm.ringAxis, radU: pm.radU, r0: p.r, radius: p.r, pos: new THREE.Vector3(), phase: p.phase ?? i * 2.4, moons: [] };
       if (d.real) { o.real = REAL[p.name]; o.pole = poleToScene(...o.real.pole); pm.group.rotation.set(0, 0, 0); pm.group.quaternion.setFromUnitVectors(UP, o.pole); }
       // orbit line: the real orbit's shape and tilt for our Solar System, a circle elsewhere
       const pts = d.real ? orbitPath(p.name, clock.date, p.orbit) : Array.from({ length: 257 }, (_, k) => { const a = (k / 256) * Math.PI * 2; return new THREE.Vector3(Math.cos(a) * p.orbit, 0, Math.sin(a) * p.orbit); });
       const lm = new THREE.LineBasicNodeMaterial({ color: 0x8899ff, transparent: true, opacity: 0.12, depthWrite: false });
       o.orbitLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), lm); root.add(o.orbitLine);
-      (p.moons || []).forEach((md) => { const mm = planetMesh({ ...md, tilt: 0 }, sun.color); root.add(mm.group); o.moons.push({ def: md, name: md.name, group: mm.group, spinner: mm.spinner, center: mm.center, radius: md.r, pos: new THREE.Vector3(), parent: o }); });
+      (p.moons || []).forEach((md) => { const mm = planetMesh({ ...md, tilt: 0 }, sun.color); root.add(mm.group); o.moons.push({ def: md, name: md.name, group: mm.group, spinner: mm.spinner, center: mm.center, radU: mm.radU, r0: md.r, radius: md.r, pos: new THREE.Vector3(), parent: o }); });
       root.add(pm.group); objs.push(o); byName[o.name] = o;
     });
   }
@@ -243,19 +245,23 @@ export function makeSystemView(scene) {
     if (!def) return;
     if (def.real) {
       clock.date = clock.live ? new Date() : new Date(clock.date.getTime() + dt * clock.speed * 864e5);
+      sunR = geo(def.star.radius, trueRadius('Sun')); sun.group.scale.setScalar(sunR / def.star.radius);
       for (const o of objs) {
-        planetPos(o.name, clock.date, o.def.orbit, o.pos);
+        const f = geo(1, AU * REAL[o.name].a / o.def.orbit);   // distance factor
+        planetPos(o.name, clock.date, o.def.orbit, o.pos).multiplyScalar(f); o.orbitLine.scale.setScalar(f);
+        o.radius = geo(o.r0, trueRadius(o.name)); o.group.scale.setScalar(o.radius / o.r0); o.radU.value = o.radius;
         o.group.position.copy(o.pos); o.center.value.copy(o.pos);
         if (o.name === 'Earth') o.spinner.rotation.y = earthSpin(clock.date);   // true time of day on Earth
         else o.spinner.rotation.y += dt * spinRate(o.real.rot);
         o.ringAxis.value.copy(o.pole);
         for (const m of o.moons) {
-          moonOffset(clock.date, m.def.orbit, v); m.pos.copy(o.pos).add(v);
+          moonOffset(clock.date, geo(m.def.orbit, MOON_DIST), v); m.pos.copy(o.pos).add(v);
+          m.radius = geo(m.r0, trueRadius(m.name)); m.group.scale.setScalar(m.radius / m.r0); m.radU.value = m.radius;
           m.group.position.copy(m.pos); m.center.value.copy(m.pos);
           m.spinner.rotation.y = Math.atan2(v.z, -v.x);   // tidally locked: the same face always toward Earth
         }
       }
-      craft.update(dt, performance.now() / 1000 - t0, byName);
+      craft.update(dt, performance.now() / 1000 - t0, byName, scale.k);
       return;
     }
     const t = performance.now() / 1000 - t0;
@@ -275,7 +281,9 @@ export function makeSystemView(scene) {
     }
   }
   return {
-    root, sky, load, update, clock,
+    root, sky, load, update, clock, scale,
+    get sunRadius() { return sunR; },
+    realDistance: (name) => (def?.real && REAL[name]?.a ? sunDistance(name, clock.date) : 0),
     get def() { return def; },
     get sunColor() { return sun?.color; },
     /** everything you can click/visit: planets and moons */
