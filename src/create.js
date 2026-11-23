@@ -132,13 +132,16 @@ export function makeCreator({ scene, camera, bodies, nebula, hands, toWorld, toS
   }
 
   // ---- hands
-  let holeCooldown = 0; const wasPinch = [false, false], vT = [0, 0];
+  let holeCooldown = 0; const wasPinch = [false, false], vT = [0, 0], pinchT = [0, 0];
   function update(dt, now) {
     api.labels.length = 0; api.gatherHeld = 0; line.visible = false;
     if (!api.enabled) { glows.forEach((g) => (g.visible = false)); sfx.gathering(false); return; }
     if (hands.mode === 'camera') {
       hands.hands.forEach((h, k) => {
-        const on = h.active > 0.6 && h.lat.pinch.on && h.point < 0.5;
+        // a pinch must be held for a moment before it counts, so a hand passing through a pinch shape creates nothing
+        const raw = h.active > 0.6 && h.lat.pinch.on && h.point < 0.5 && !(h.victory > 0.5);
+        pinchT[k] = raw ? pinchT[k] + dt : 0;
+        const on = raw && (wasPinch[k] || pinchT[k] > 0.1);
         // where the pinch really is: the thumb and index fingertips (the smoothed control point lags behind at the
         // moment a pinch closes, which made "pinch a world to grab it" miss and start a new star instead)
         const tipX = h.screen ? (h.screen[4].x + h.screen[8].x) / 2 * innerWidth : null, tipY = h.screen ? (h.screen[4].y + h.screen[8].y) / 2 * innerHeight : null;

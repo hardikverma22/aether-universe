@@ -119,7 +119,9 @@ export class Hands {
     const pinchLike = (1 - ss(0.18, 0.35, dist(mir[4], mir[8]) / size)) * ss(0.35, 0.55, dist(mir[8], mir[5]) / size);
     const fistRaw = (1 - ss(1.05, 1.5, tips)) * (1 - ss(1.35, 1.65, ext(8))) * (1 - pointRaw) * (1 - pinchLike);   // a fist needs the index curled too
     const openRaw = ss(1.55, 1.95, tips) * (1 - pointRaw);
-    const pinchRaw = (1 - ss(0.22, 0.5, dist(mir[4], mir[8]) / size)) * (1 - fistRaw) * (1 - pointRaw);
+    // pinch = fingertips actually touching: real pinches measure 0.08–0.13 hand sizes apart, a relaxed open 'C' hand
+    // ~0.3–0.4 (measured on real photos); the old 0.22–0.5 window let a relaxed hand count as a pinch
+    const pinchRaw = (1 - ss(0.13, 0.24, dist(mir[4], mir[8]) / size)) * (1 - fistRaw) * (1 - pointRaw);
     h.pinch = h.lat.pinch.update(pinchRaw); h.fist = h.lat.fist.update(fistRaw); h.point = h.lat.point.update(pointRaw);
     h.open += (openRaw - h.open) * 0.6;
     const now = performance.now();
