@@ -106,7 +106,11 @@ export class Hands {
     // pointing = index straight, the other three curled; it takes priority over fist and pinch
     const others = (ext(12) + ext(16) + ext(20)) / 3;
     const pointRaw = ss(1.65, 1.95, ext(8)) * (1 - ss(1.2, 1.5, others)) * ss(0.35, 0.6, dist(mir[4], mir[8]) / size);
-    const fistRaw = (1 - ss(1.05, 1.5, tips)) * (1 - ss(1.35, 1.65, ext(8))) * (1 - pointRaw);   // a fist needs the index curled too
+    // a pinch made with the other fingers curled (how many people pinch) looks like a fist by finger extension alone;
+    // the difference: thumb and index tips touch while the index tip reaches forward, away from its own knuckle
+    // (measured on real photos: curled pinch 1.27, fist 0.14 index-tip-to-knuckle, in hand sizes)
+    const pinchLike = (1 - ss(0.18, 0.35, dist(mir[4], mir[8]) / size)) * ss(0.35, 0.55, dist(mir[8], mir[5]) / size);
+    const fistRaw = (1 - ss(1.05, 1.5, tips)) * (1 - ss(1.35, 1.65, ext(8))) * (1 - pointRaw) * (1 - pinchLike);   // a fist needs the index curled too
     const openRaw = ss(1.55, 1.95, tips) * (1 - pointRaw);
     const pinchRaw = (1 - ss(0.22, 0.5, dist(mir[4], mir[8]) / size)) * (1 - fistRaw) * (1 - pointRaw);
     h.pinch = h.lat.pinch.update(pinchRaw); h.fist = h.lat.fist.update(fistRaw); h.point = h.lat.point.update(pointRaw);
