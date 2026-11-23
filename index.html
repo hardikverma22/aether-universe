@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="theme-color" content="#03030a" />
   <title>Aether — make a universe with your hands</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@800&family=Onest:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/src/style.css" />
 </head>
 <body>
@@ -13,19 +16,21 @@
 
   <section id="intro">
     <div class="hero">
-      <p class="eyebrow">Aether</p>
-      <h1 id="title">Make a universe<br />with your hands.</h1>
-      <p class="lede">Pinch stardust into stars. Throw planets into orbit. Feed a black hole. All in your browser, with just your webcam.</p>
-      <ul class="moves">
-        <li><span>🤏</span> pinch &amp; hold <em>→ star</em></li>
-        <li><span>🤏</span> quick pinch <em>→ planet</em></li>
-        <li><span>✊✊</span> two fists <em>→ black hole</em></li>
-      </ul>
-      <div class="cta">
-        <button id="btnCam" class="primary">Start with my hands</button>
-        <button id="btnMouse">Use the mouse</button>
+      <div class="corner tl">
+        <p class="lede">Make stars, planets and black holes with your bare hands.</p>
+        <div class="cta">
+          <button id="btnCam" class="primary">Start with my hands</button>
+          <button id="btnMouse" class="quiet">or use the mouse</button>
+        </div>
       </div>
-      <p class="fine">Hand tracking runs on your device. The camera image never leaves this page.</p>
+      <dl class="corner tr moves">
+        <div><dt>Pinch and hold</dt><dd>a star</dd></div>
+        <div><dt>Pinch and let go</dt><dd>a planet</dd></div>
+        <div><dt>Two fists together</dt><dd>a black hole</dd></div>
+      </dl>
+      <p class="corner bl fine">Hand tracking runs on your device. Your camera image never leaves this page.</p>
+      <p class="corner br places">Create in an empty playground, in our real Solar System, or in any of 110 galaxies.</p>
+      <h1 id="title" aria-label="Aether: make a universe with your hands"><span class="ch">A</span><span class="ch">e</span><span class="ch">t</span><span class="ch">h</span><span class="ch">e</span><span class="ch">r</span></h1>
     </div>
   </section>
 

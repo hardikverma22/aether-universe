@@ -499,7 +499,7 @@ function coachTick(dt) {
 
 // ================================================================ home (attract mode: a little solar system forms behind the title) + start
 function attract() {
-  loadPlayground(); rig.setFrom(PLAY.pos.clone().add(new THREE.Vector3(-3.6, 0, 0)), new THREE.Vector3(0, 0.5, 1), PLAY_R + 1);
+  loadPlayground(); rig.setFrom(PLAY.pos.clone().add(new THREE.Vector3(1.4, -1.3, 0)), new THREE.Vector3(0, 0.5, 1), PLAY_R + 1);
   const sun = bodies.add('star', new THREE.Vector3(1.4, 0, 0), new THREE.Vector3(), 1.4);
   [[1.3, 'lava'], [2.0, 'terran'], [2.9, 'gas']].forEach(([r, kind], i) => {
     const a = i * 2.2; const p = new THREE.Vector3(1.4 + Math.cos(a) * r, 0, Math.sin(a) * r * 0.9);
@@ -507,7 +507,20 @@ function attract() {
   });
 }
 attract();
-gsap.from('#intro .hero > *', { y: 18, opacity: 0, duration: 1.1, ease: 'power3.out', stagger: 0.09, delay: 0.2 });
+// the name is fitted to run exactly from margin to margin; its height positions the corner texts above it
+function fitName() {
+  const t = $('title'); if (!t || $('intro').hidden) return;
+  t.style.setProperty('--name-size', '100px');
+  const w = t.clientWidth, sw = [...t.children].reduce((a, c) => a + c.getBoundingClientRect().width, 0) || 1;
+  const size = Math.max(40, Math.floor(100 * w / sw * 0.995));
+  document.documentElement.style.setProperty('--name-size', size + 'px'); t.style.removeProperty('--name-size');
+  document.documentElement.style.setProperty('--name-h', Math.round(size * 0.74) + 'px');
+}
+fitName(); document.fonts?.ready.then(fitName); addEventListener('resize', fitName);
+if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  gsap.from('#title .ch', { yPercent: 105, duration: 1.3, ease: 'expo.out', stagger: 0.06, delay: 0.25 });
+  gsap.from('#intro .lede, #intro .cta, #intro .moves > div, #intro .bl, #intro .br', { y: 22, opacity: 0, duration: 1, ease: 'power3.out', stagger: 0.08, delay: 0.7 });
+}
 const status = $('status');
 async function start(m) {
   document.querySelectorAll('.cta button').forEach((b) => (b.disabled = true));
