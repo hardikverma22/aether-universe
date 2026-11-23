@@ -228,7 +228,7 @@ async function enterSystem(s, direct = false) {
   bodies.clear(); bodies.setCenter(ORIGIN); bodies.configure({ coreMass: SUN_MASS, coreSoft: 0.02, sizeMul: 2.4, escape: 40 });
   rig.min = 2.5; rig.max = 60; rig.setFrom(ORIGIN, new THREE.Vector3(0.2, 0.55, 1), 9); rig.goal.radius = SYSTEM_R;
   setLook('system', 0.1); focus = null;
-  mode = 'system'; refreshHUD(); await warp(0, 0.9); coachFor('system');
+  mode = 'system'; refreshHUD(); await warp(0, 0.9); coachFor(isSol() ? 'sol' : 'system');
 }
 async function exitSystem() {
   if (mode !== 'system' || rig.busy) return;
@@ -372,7 +372,10 @@ function drawOverlay() {
 
 // ================================================================ mouse + keys
 const glc = $('gl'); let drag = null;
-const creating = () => mode === 'playground' || mode === 'system';
+// our real Solar System is for exploring; you create in the Playground and in the other star systems
+const isSol = () => mode === 'system' && currentSystem === SOL;
+const creating = () => mode === 'playground' || (mode === 'system' && !isSol());
+const picking = () => creating() || mode === 'system';
 glc.addEventListener('pointerdown', (e) => {
   if (!started) return; const now = performance.now();
   // a click on one of the system's own planets (or its sun) is for visiting it, never for creating
@@ -386,7 +389,7 @@ addEventListener('pointermove', (e) => {
   if (drag?.creating) { if (!creator.mouseMove(e, now)) drag.creating = false; else return; }
   if (drag && mode !== 'galaxy' && mode !== 'flying') { const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.moved += Math.abs(dx) + Math.abs(dy); rig.orbit(-dx * 0.004, -dy * 0.004); drag.x = e.clientX; drag.y = e.clientY; }
   else if (drag) drag.moved += Math.abs(e.clientX - drag.x) + Math.abs(e.clientY - drag.y);
-  mouseHover = mode === 'universe' ? pickGalaxy(e.clientX, e.clientY) : mode === 'galaxy' ? pickMarker(e.clientX, e.clientY) : creating() ? pickWorld(e.clientX, e.clientY) : null;
+  mouseHover = mode === 'universe' ? pickGalaxy(e.clientX, e.clientY) : mode === 'galaxy' ? pickMarker(e.clientX, e.clientY) : picking() ? pickWorld(e.clientX, e.clientY) : null;
 });
 addEventListener('pointerup', (e) => {
   if (!started) return; const now = performance.now();
@@ -394,11 +397,11 @@ addEventListener('pointerup', (e) => {
   if (drag && drag.moved < 6) {
     if (mode === 'universe') { const g = pickGalaxy(e.clientX, e.clientY); if (g) enterGalaxy(g); }
     else if (mode === 'galaxy') { const s = pickMarker(e.clientX, e.clientY); if (s) enterSystem(s); }
-    else if (creating()) { const b = pickWorld(e.clientX, e.clientY); if (b) focusOn(b); }
+    else if (picking()) { const b = pickWorld(e.clientX, e.clientY); if (b) focusOn(b); }
   }
   drag = null;
 });
-glc.addEventListener('dblclick', (e) => { if (started && creating()) { const b = pickWorld(e.clientX, e.clientY); if (b) focusOn(b); } });
+glc.addEventListener('dblclick', (e) => { if (started && picking()) { const b = pickWorld(e.clientX, e.clientY); if (b) focusOn(b); } });
 glc.addEventListener('wheel', (e) => {
   e.preventDefault(); if (!started) return; rig.zoom(Math.exp(e.deltaY * 0.0012));
   if (e.deltaY > 0 && focus && rig.goal.radius > focus.radius * 22) unfocus();
@@ -437,11 +440,12 @@ const PANEL = {
   system: { title: 'Star system', cam: ['🤏 <b>Pinch</b> to add planets and stars', '👉 <b>Point &amp; hold</b> a planet → close-up', '✋✋ <b>Both palms</b> → back'], mouse: ['<b>Hold / click</b> in space to add worlds', '<b>Click</b> a planet → close-up', '<b>Drag</b> to turn · <b>Esc</b> back'] },
   galaxy: { title: 'A galaxy', cam: ['✋ <b>Move your hand</b> through the stars', '👉 <b>Point &amp; hold</b> a glowing star system', '✋✋ <b>Both palms</b> → back'], mouse: ['<b>Move</b> through the stars', '<b>Click</b> a glowing star system', '<b>Esc</b> → back'] },
   universe: { title: 'The universe', cam: ['✋ <b>Open palm</b> turns the sky', '👉 <b>Point &amp; hold</b> a galaxy to fly in'], mouse: ['<b>Drag</b> to turn, <b>scroll</b> to zoom', '<b>Click</b> a galaxy to fly in'] },
+  sol: { title: 'The Solar System', cam: ['👉 <b>Point &amp; hold</b> a planet → close-up', '✋ <b>Open palm</b> turns the view', '✋✋ <b>Both palms</b> → back'], mouse: ['<b>Click</b> a planet → close-up', '<b>Drag</b> to turn · <b>scroll</b> to zoom', '<b>Esc</b> → back'] },
   planet: { title: 'Close-up', cam: ['✋✋ <b>Both palms</b> → back'], mouse: ['<b>Drag</b> to look around · <b>Esc</b> back'] },
 };
 function refreshHUD() {
   if (refreshHUD.lastMode !== mode) { hover = null; mouseHover = null; dwell = 0; refreshHUD.lastMode = mode; }
-  const key = focus ? 'planet' : mode === 'flying' ? null : mode;
+  const key = focus ? 'planet' : mode === 'flying' ? null : isSol() ? 'sol' : mode;
   const cam = hands.mode === 'camera';
   if (key) { $('panelTitle').textContent = PANEL[key].title; $('guide').innerHTML = PANEL[key][cam ? 'cam' : 'mouse'].map((t) => `<li>${t}</li>`).join(''); }
   $('panel').style.opacity = key ? 1 : 0;
@@ -474,6 +478,7 @@ const COACH = {
       { text: 'Press B, then click, for a black hole', done: () => made.hole > 0, ok: 'A black hole' },
     ],
   },
+  sol: { camera: [{ text: '👉 Point at a planet and hold for a close-up', done: () => !!focus, ok: 'Close-up' }], mouse: [{ text: 'Click a planet for a close-up', done: () => !!focus, ok: 'Close-up' }] },
   system: { camera: [{ text: '🤏 Pinch near the Sun and let go — add a world to the system', done: () => made.planet + made.star > 0, ok: 'Added to the system' }, { text: '👉 Point & hold a planet for a close-up', done: () => !!focus, ok: 'Close-up' }], mouse: [{ text: 'Click in space to add a world to the system', done: () => made.planet + made.star > 0, ok: 'Added to the system' }, { text: 'Click a planet for a close-up', done: () => !!focus, ok: 'Close-up' }] },
   universe: { camera: [{ text: '👉 Point at a galaxy and hold to fly in', done: () => mode === 'galaxy', ok: 'Into a galaxy' }], mouse: [{ text: 'Click any galaxy to fly in', done: () => mode === 'galaxy', ok: 'Into a galaxy' }] },
   galaxy: { camera: [{ text: '👉 Point & hold a glowing star system to visit it', done: () => mode === 'system', ok: 'A new star system' }], mouse: [{ text: 'Click a glowing star system to visit it', done: () => mode === 'system', ok: 'A new star system' }] },
@@ -544,7 +549,7 @@ function banner(text) { const b = $('banner'); b.textContent = text; b.hidden = 
 async function switchInput() {
   if (hands.mode === 'camera') hands.initMouse(glc);
   else { try { if (!hands.worker) await hands.initCamera(); else hands.mode = 'camera'; updateCover(); banner(''); } catch (e) { console.warn(e); hands.initMouse(glc); banner('Camera unavailable (' + (e.name || 'error') + '). Allow camera access in the address bar, then try again.'); } }
-  updateInputButton(); refreshHUD(); coach.seen.clear(); coachFor(mode === 'flying' ? 'playground' : mode);
+  updateInputButton(); refreshHUD(); coach.seen.clear(); coachFor(mode === 'flying' ? 'playground' : isSol() ? 'sol' : mode);
 }
 
 $('btnCam').onclick = () => start('camera');
