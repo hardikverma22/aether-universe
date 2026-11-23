@@ -95,10 +95,12 @@ export function makeStudio({ bodies, creator, galaxy, center, quat, say }) {
       ring(1.5, 2.2, 0, 'terran', 1); ring(1.5, 2.2, Math.PI * 0.55, 'gas', -1);
       say('Planet crash', 'Two worlds on the same orbit, going opposite ways');
     } else if (name === 'cluster') {
-      for (let i = 0; i < 7; i++) {
-        const a = Math.random() * Math.PI * 2, r = 0.8 + Math.random() * 2.6, t = STARS[Math.floor(Math.random() * STARS.length)][1];
-        bodies.add('star', P(Math.cos(a) * r, Math.sin(a) * r, (Math.random() - 0.5) * 0.6), V(-Math.sin(a), Math.cos(a)).multiplyScalar(0.25 + Math.random() * 0.35), 0.3 + Math.random() * 0.8, undefined, { temp: t });
-      }
+      // a young cluster in slow orbit around its own centre, spread out so the stars don't collide at once
+      const n = 7, masses = Array.from({ length: n }, () => 0.25 + Math.random() * 0.45), M = masses.reduce((a, b) => a + b, 0);
+      masses.forEach((m, i) => {
+        const a = (i / n) * Math.PI * 2 + Math.random() * 0.4, r = 1.6 + Math.random() * 2.0, t = STARS[Math.floor(Math.random() * STARS.length)][1];
+        bodies.add('star', P(Math.cos(a) * r, Math.sin(a) * r, (Math.random() - 0.5) * 0.4), V(-Math.sin(a), Math.cos(a)).multiplyScalar(circ(M * 0.55, r) * (0.85 + Math.random() * 0.2)), m, undefined, { temp: t });
+      });
       say('A star cluster', 'Young stars of every colour, pulling on each other');
     }
   }

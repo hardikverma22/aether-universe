@@ -153,7 +153,7 @@ export class Bodies {
     });
     for (let k = 0; k < MAX; k++) {
       const b = L[k], v = this.gpu.array[k];
-      if (b) v.set(b.pos.x, b.pos.y, b.pos.z, b.type === 'hole' ? -b.mass : b.mass * (b.type === 'planet' ? 0.3 : 1)); else v.set(0, 0, 9999, 0);
+      if (b) v.set(b.pos.x, b.pos.y, b.pos.z, b.type === 'hole' ? -b.mass : b.type === 'planet' ? 0 : b.mass);   // planets don't gather stardust (it clumped into glowing balls) else v.set(0, 0, 9999, 0);
     }
     this.trailAttr.needsUpdate = true; this.trailCol.needsUpdate = true;
   }

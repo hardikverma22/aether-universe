@@ -332,7 +332,9 @@ function updateEffects(dt) {
 }
 function bodyEvents() {
   for (const ev of bodies.events.splice(0)) {
-    nebula.emitBurst(ev.pos, ev.into === 'hole' ? new THREE.Color(1, 0.55, 0.2) : ev.color || new THREE.Color(1, 1, 1), 700, 0.5);
+    // a soft puff, not a blinding cloud: several merges in a row used to pile up into white blobs
+    const c = (ev.into === 'hole' ? new THREE.Color(1, 0.55, 0.2) : (ev.color || new THREE.Color(1, 1, 1)).clone()).multiplyScalar(0.7);
+    nebula.emitBurst(ev.pos, c.multiplyScalar(0.7), ev.into === 'hole' ? 90 : 120 + Math.min(160, ev.mass * 400), 1.3);
     nova.chroma = Math.max(nova.chroma, 0.25); sfx.thump();
   }
 }
