@@ -344,13 +344,36 @@ function bodyEvents() {
 
 // ================================================================ hands: point to go closer, both palms to go back, open palm turns systems
 let hover = null, dwell = 0, stillPalms = 0;
-const POINT_HOLD = 0.7, PALMS_HOLD = 0.8;
+const POINT_HOLD = 0.7, PALMS_HOLD = 0.8, UI_HOLD = 0.7;
+let uiHover = null, uiDwell = 0, uiCool = 0;
+// buttons are small for a fingertip: look a little around it, nearest first
+const UI_PROBE = [[0, 0], [0, -8], [0, 8], [-8, 0], [8, 0], [0, -14], [0, 14], [-14, 0], [14, 0]];
+function uiAt(x, y) {
+  for (const [dx, dy] of UI_PROBE) {
+    const el = document.elementFromPoint(x + dx, y + dy); if (!el || el === glc || el.id === 'overlay') continue;
+    const c = el.closest('button, label.tog'); if (c && !c.disabled && c.closest('#hud, #studio')) return c;
+  }
+  return null;
+}
+let uiLost = 0;
 function handNavigation(dt) {
   handNavigation.tip = null; handNavigation.target = null;
   if (hands.mode !== 'camera' || !started) return;
   const act = hands.hands.filter((h) => h.active > 0.7);
   const pointer = act.find((h) => h.point > 0.6 && (h.draw || h.screen));
   const tp = pointer ? (pointer.draw || pointer.screen)[8] : null; const tip = tp ? { x: tp.x * innerWidth, y: tp.y * innerHeight } : null;
+  // pointing at a button presses it after a short hold, so every control works with hands alone
+  handNavigation.ui = null; uiCool = Math.max(0, uiCool - dt);
+  const ui = tip && uiCool <= 0 ? uiAt(tip.x, tip.y) : null;
+  if (ui) {
+    uiLost = 0;
+    if (ui === uiHover) { uiDwell += dt / UI_HOLD; if (uiDwell >= 1) { uiDwell = 0; uiCool = 0.9; ui.click(); ui.classList.add('handpress'); setTimeout(() => ui.classList.remove('handpress'), 260); sfx.chime(0.05); } }
+    else { uiHover = ui; uiDwell = 0; }
+    handNavigation.tip = tip; handNavigation.ui = { el: ui, p: uiDwell }; hover = null; dwell = 0; return;
+  }
+  // a brief slip off the button (fingertip jitter) keeps the hold instead of restarting it
+  if (uiHover && tip && (uiLost += dt) < 0.25) { handNavigation.tip = tip; handNavigation.ui = { el: uiHover, p: uiDwell }; return; }
+  uiHover = null; uiDwell = 0; uiLost = 0;
   const target = !tip ? null : mode === 'universe' ? pickGalaxy(tip.x, tip.y, 40) : mode === 'galaxy' ? pickMarker(tip.x, tip.y, 80) : (mode === 'system' || mode === 'playground') ? pickWorld(tip.x, tip.y, 40) : null;
   handNavigation.tip = tip; handNavigation.target = target;
   if (target && target === hover) { dwell += dt / POINT_HOLD; if (dwell >= 1) { dwell = 0; if (mode === 'universe') enterGalaxy(target); else if (mode === 'galaxy') enterSystem(target); else if (focus !== target) focusOn(target); } }
@@ -490,8 +513,12 @@ function drawOverlay() {
     pill(g, P[0][0], P[0][1] + 60, h.point > 0.6 || h.lat.pinch.on || h.lat.fist.on);
   }
   for (const l of creator.labels) pill(l.text, l.x, l.y, true);
-  const T = handNavigation.tip;
-  if (started && T && mode !== 'flying') {
+  const T = handNavigation.tip, UI = handNavigation.ui;
+  if (started && T && UI) {   // fingertip over a button: a ring fills, then it presses
+    ctx.save(); ctx.globalCompositeOperation = 'source-over'; ctx.shadowBlur = 0;
+    ctx.strokeStyle = 'rgba(207,229,255,0.9)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(T.x, T.y, 14, 0, 7); ctx.stroke();
+    ctx.strokeStyle = '#cfe5ff'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(T.x, T.y, 14, -Math.PI / 2, -Math.PI / 2 + Math.min(1, UI.p) * Math.PI * 2); ctx.stroke(); ctx.restore();
+  } else if (started && T && mode !== 'flying') {
     const tgt = handNavigation.target; ctx.globalCompositeOperation = 'source-over'; ctx.shadowBlur = 0;
     ctx.strokeStyle = tgt ? 'rgba(255,214,170,0.95)' : 'rgba(220,228,255,0.7)'; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.arc(T.x, T.y, 20, 0, 7); ctx.stroke();
@@ -593,7 +620,7 @@ function toggleRecord() {
 
 // ================================================================ HUD: places, breadcrumb, one short panel, coach
 const PANEL = {
-  playground: { title: 'Playground', cam: ['🤏 <b>Pinch &amp; hold</b>, let go → star', '🤏 <b>Quick pinch</b> near a star → planet', '✊✊ <b>Two fists</b> together → black hole', '🤏 <b>Pinch a world</b> to grab and throw it'], mouse: ['<b>Hold</b> in space, release → star', '<b>Click</b> near a star → planet', '<b>Drag</b> a world to throw it', '<b>B</b> → black hole · <b>?</b> all shortcuts'] },
+  playground: { title: 'Playground', cam: ['🤏 <b>Pinch &amp; hold</b>, let go → star', '🤏 <b>Quick pinch</b> near a star → planet', '✊✊ <b>Two fists</b> together → black hole', '🤏 <b>Pinch a world</b> to grab and throw it', '👉 <b>Point &amp; hold</b> any button to press it'], mouse: ['<b>Hold</b> in space, release → star', '<b>Click</b> near a star → planet', '<b>Drag</b> a world to throw it', '<b>B</b> → black hole · <b>?</b> all shortcuts'] },
   system: { title: 'Star system', cam: ['🤏 <b>Pinch</b> to add planets and stars', '👉 <b>Point &amp; hold</b> a planet → close-up', '✋✋ <b>Both palms</b> → back'], mouse: ['<b>Hold / click</b> in space to add worlds', '<b>Click</b> a planet → close-up', '<b>Drag</b> to turn · <b>Esc</b> back'] },
   galaxy: { title: 'A galaxy', cam: ['✋ <b>Move your hand</b> through the stars', '👉 <b>Point &amp; hold</b> a glowing star system', '✋✋ <b>Both palms</b> → back'], mouse: ['<b>Move</b> through the stars', '<b>Click</b> a glowing star system', '<b>Esc</b> → back'] },
   universe: { title: 'The universe', cam: ['✋ <b>Open palm</b> turns the sky', '👉 <b>Point &amp; hold</b> a galaxy to fly in'], mouse: ['<b>Drag</b> to turn, <b>scroll</b> to zoom', '<b>Click</b> a galaxy to fly in'] },
