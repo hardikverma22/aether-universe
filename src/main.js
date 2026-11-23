@@ -506,6 +506,12 @@ function drawOverlay() {
       : describe(h);
     label.innerHTML = `<b>${title}</b><span>${sub}</span>`;
   } else label.hidden = true;
+  if (started && mode === 'universe' && !h) {   // anchor: our own galaxy
+    const mw = universe.list[0]; const s = toScreen(mw.pos);
+    if (s.front) { ctx.globalCompositeOperation = 'source-over'; ctx.font = '500 13px Onest, ui-sans-serif, sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.strokeStyle = 'rgba(255,230,190,0.85)'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.arc(s.x, s.y, 14, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,236,205,0.95)'; ctx.fillText('Milky Way · you are here', s.x + 22, s.y); }
+  }
   if (started && mode === 'galaxy' && current.id === 0 && !h) {
     const solM = markers.children.find((m) => m.userData.sys.real);
     if (solM) { const s = toScreen(solM.position); if (s.front) { ctx.globalCompositeOperation = 'source-over'; ctx.font = '500 13px ui-sans-serif, -apple-system, sans-serif'; ctx.fillStyle = 'rgba(255,230,190,0.95)'; ctx.textAlign = 'left'; ctx.fillText('Sol · our Solar System', s.x + 18, s.y + 4); } }

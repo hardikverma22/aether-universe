@@ -51,8 +51,8 @@ export function makeUniverse({ seed = 7, galaxies: N = 110, dust = 150000 } = {}
       name: SYL[Math.floor(rnd() * SYL.length)] + END[Math.floor(rnd() * END.length)] + ' ' + (100 + Math.floor(rnd() * 900)),
     });
   }
-  list[0].name = 'Aether Prime';
-  // every galaxy holds a few visitable star systems, placed in its disc (galaxy frame); Aether Prime holds Sol
+  list[0].name = 'Milky Way';   // ours: it holds the real Sol
+  // every galaxy holds a few visitable star systems, placed in its disc (galaxy frame); the Milky Way holds Sol
   const SYS = ['Kep', 'Tra', 'Gli', 'Wol', 'Ros', 'Lal', 'Hel', 'Ara', 'Vel', 'Ori', 'Zeta', 'Nyx'];
   list.forEach((g) => {
     const n = 3 + Math.floor(rnd() * 3); g.systems = [];
