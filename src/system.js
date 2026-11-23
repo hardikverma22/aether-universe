@@ -16,6 +16,7 @@ const cache = new Map();
 export function tex(name, srgb = true) {
   if (!cache.has(name)) {
     const t = loader.load(`/textures/${name}`); t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace; t.anisotropy = 8;
+    t.wrapS = THREE.RepeatWrapping;   // maps wrap around the globe (drifting clouds shift past u = 1; clamping smeared them into streaks)
     cache.set(name, t);
   }
   return cache.get(name);
