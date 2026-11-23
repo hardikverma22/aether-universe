@@ -17,7 +17,7 @@ const KINDS = [['Random', null], ['Ocean', 'terran'], ['Rocky', 'desert'], ['Ice
 const MAKES = [['Auto', 'auto', 'Quick pinch or click makes a planet, hold for a star'], ['Star', 'star', ''], ['Planet', 'planet', ''], ['Black hole', 'hole', '']];
 const SPEEDS = [['Pause', 0], ['½×', 0.5], ['1×', 1], ['2×', 2], ['4×', 4]];
 
-export function makeStudio({ bodies, creator, galaxy, center, quat, say }) {
+export function makeStudio({ bodies, creator, galaxy, center, quat, say, onClear }) {
   const st = { theme: 'Nebula', time: 1, trails: true, g: 1 };
   const el = document.getElementById('studio');
   const chips = (items, cls, attr) => items.map(([label, val, title]) => `<button class="${cls}" data-${attr}="${val}"${title ? ` title="${title}"` : ''}>${label}</button>`).join('');
@@ -55,7 +55,7 @@ export function makeStudio({ bodies, creator, galaxy, center, quat, say }) {
   $$('[data-scene]').forEach((b) => (b.onclick = () => scene(b.dataset.scene)));
   const gRange = el.querySelector('#gRange'); gRange.oninput = () => { st.g = +gRange.value; sync(); };
   el.querySelector('#trailsTog').onchange = (e) => { st.trails = e.target.checked; };
-  el.querySelector('#stClear').onclick = () => { bodies.clear(); say('Cleared', 'An empty sky, ready for you'); };
+  el.querySelector('#stClear').onclick = () => { bodies.clear(); onClear?.(); say('Cleared', 'A fresh sky, ready for you'); };
   el.querySelector('#stShare').onclick = share;
   const head = el.querySelector('.shead');
   head.onclick = () => { const open = el.classList.toggle('closed') === false; head.setAttribute('aria-expanded', String(open)); };
@@ -74,7 +74,7 @@ export function makeStudio({ bodies, creator, galaxy, center, quat, say }) {
   function scene(name) {
     const names = ['solar', 'binary', 'feast', 'crash', 'cluster'];
     if (name === 'surprise') { name = names[Math.floor(Math.random() * names.length)]; const t = Object.keys(THEMES); applyTheme(t[Math.floor(Math.random() * t.length)]); sync(); }
-    bodies.clear();
+    bodies.clear(); onClear?.();
     if (name === 'solar') {
       bodies.add('star', P(0, 0), new THREE.Vector3(), 1.6, undefined, { temp: 5800 });
       [[0.9, 'lava'], [1.45, 'terran'], [2.05, 'desert'], [2.9, 'gas'], [3.6, 'ice']].forEach(([r, k], i) => ring(1.6, r, i * 2.4, k));

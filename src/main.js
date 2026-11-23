@@ -333,12 +333,30 @@ function updateEffects(dt) {
   U.flash.value = bang.state === 'exploding' ? Math.max(0, 1 - bang.t * 3) ** 2 * 0.9 : Math.max(0, U.flash.value - dt);
   nova.explode *= Math.exp(-dt * 2.5); nova.chroma *= Math.exp(-dt * 2.0); if (nova.explode < 0.01) nova.explode = 0;
 }
+// music of the spheres: each planet rings its own note as it passes the same point around its star
+function orbitChimes() {
+  if (!started || (mode !== 'playground' && mode !== 'system')) return;
+  const L = bodies.list;
+  for (const b of L) {
+    if (b.type !== 'planet') continue;
+    let host = null, best = 0;
+    for (const o of L) { if (o === b || o.type === 'planet') continue; const r2 = o.pos.distanceToSquared(b.pos) + 0.01; const pull = o.mass / r2; if (pull > best) { best = pull; host = o; } }
+    if (!host && mode === 'system') host = sunObj;
+    if (!host) { b._ang = null; continue; }
+    const a = Math.atan2(b.pos.z - host.pos.z, b.pos.x - host.pos.x);
+    if (b._ang != null && b._host === host && (b._ang < 0) !== (a < 0) && Math.abs(a - b._ang) < 1) {
+      if (b.note == null) b.note = sfx.noteFor(b.kind);
+      const sp = toScreen(b.pos); sfx.planetNote(b.note, b.radius * 4, sp.x != null ? sp.x / innerWidth * 2 - 1 : 0);
+    }
+    b._ang = a; b._host = host;
+  }
+}
 function bodyEvents() {
   for (const ev of bodies.events.splice(0)) {
     // a soft puff, not a blinding cloud: several merges in a row used to pile up into white blobs
     const c = (ev.into === 'hole' ? new THREE.Color(1, 0.55, 0.2) : (ev.color || new THREE.Color(1, 1, 1)).clone()).multiplyScalar(0.7);
     nebula.emitBurst(ev.pos, c.multiplyScalar(0.7), ev.into === 'hole' ? 90 : 120 + Math.min(160, ev.mass * 400), 1.3);
-    nova.chroma = Math.max(nova.chroma, 0.25); sfx.thump();
+    nova.chroma = Math.max(nova.chroma, 0.25); const sp = toScreen(ev.pos); sfx.mergeBloom(sp.x != null ? sp.x / innerWidth * 2 - 1 : 0);
   }
 }
 
@@ -367,7 +385,7 @@ function handNavigation(dt) {
   const ui = tip && uiCool <= 0 ? uiAt(tip.x, tip.y) : null;
   if (ui) {
     uiLost = 0;
-    if (ui === uiHover) { uiDwell += dt / UI_HOLD; if (uiDwell >= 1) { uiDwell = 0; uiCool = 0.9; ui.click(); ui.classList.add('handpress'); setTimeout(() => ui.classList.remove('handpress'), 260); sfx.chime(0.05); } }
+    if (ui === uiHover) { uiDwell += dt / UI_HOLD; if (uiDwell >= 1) { uiDwell = 0; uiCool = 0.9; ui.click(); ui.classList.add('handpress'); setTimeout(() => ui.classList.remove('handpress'), 260); sfx.planetNote(12, 0.2, 0); } }
     else { uiHover = ui; uiDwell = 0; }
     handNavigation.tip = tip; handNavigation.ui = { el: ui, p: uiDwell }; hover = null; dwell = 0; return;
   }
@@ -597,7 +615,9 @@ addEventListener('keydown', (e) => {
   if (e.key === '1') goPlayground(); if (e.key === '2') goSolarSystem(); if (e.key === '3') goUniverse();
 });
 creator.blocked = (x, y) => { if (mode !== 'system') return false; const b = pickWorld(x, y); return !!b && !bodies.list.includes(b); };
-studio = makeStudio({ bodies, creator, galaxy, center: PLAY.pos, quat: PLAY.quat, say });
+// a fresh sky: no gas left over, stardust settled back into its cloud
+const freshSky = () => { nebula.reset(); renderer.compute(galaxy.init); };
+studio = makeStudio({ bodies, creator, galaxy, center: PLAY.pos, quat: PLAY.quat, say, onClear: freshSky });
 function toggleHoleTool() {
   if (mode === 'playground') { studio.setMake(creator.opt.make === 'hole' ? 'auto' : 'hole'); say(creator.opt.make === 'hole' ? 'Black holes' : 'Back to auto', creator.opt.make === 'hole' ? 'Every pinch or click makes a black hole' : 'Quick pinch for a planet, hold for a star'); return; } const on = creator.mouseTool !== 'hole'; creator.setTool(on ? 'hole' : null); $('btnHole').classList.toggle('on', on); if (on) say('Black hole', 'Click where it should appear'); }
 
@@ -792,7 +812,7 @@ function setTrueScale(on) {
 function syncTimebar() { const c = systemView.clock; $('btnScale').onclick = () => setTrueScale(systemView.scale.k < 0.5);
 document.querySelectorAll('#timebar [data-speed]').forEach((b) => b.classList.toggle('on', c.live ? b.dataset.speed === 'live' : +b.dataset.speed === c.speed)); }
 document.querySelectorAll('#timebar [data-speed]').forEach((b) => (b.onclick = () => { const c = systemView.clock; if (b.dataset.speed === 'live') c.live = true; else { c.live = false; c.speed = +b.dataset.speed; } syncTimebar(); }));
-$('btnClear').onclick = () => { bodies.clear(); say('Cleared', ''); };
+$('btnClear').onclick = () => { bodies.clear(); nebula.reset(); say('Cleared', ''); };
 document.querySelectorAll('#places [data-place]').forEach((b) => (b.onclick = () => ({ playground: goPlayground, sol: goSolarSystem, universe: goUniverse })[b.dataset.place]()));
 
 // ================================================================ loop
@@ -830,8 +850,13 @@ renderer.setAnimationLoop((now) => {
     t.pos.value.copy(h.pos); t.vel.value.copy(h.vel).clampLength(0, 14);
     // in the Playground pinching gathers stardust into your fingers; in a galaxy hands just stir the stars
     t.active.value = live ? h.active : 0; t.pinch.value = mode === 'playground' && hands.mode === 'camera' ? h.pinch : 0; t.fist.value = 0; t.open.value = h.open; t.burst.value = 0; t.point.value = 0;
-    for (let j = 0; j < 21; j++) u.joints.array[i * 21 + j].copy(live && h.active > 0.3 && hands.mode === 'camera' ? h.world[j] : FAR);
+
   });
+  { // pack only the hands that are really there, so the stardust loop skips absent ones
+    let n = 0;
+    for (const h of hands.hands) if (live && h.active > 0.3 && hands.mode === 'camera') { for (let j = 0; j < 21; j++) u.joints.array[n * 21 + j].copy(h.world[j]); n++; }
+    u.nJoints.value = n * 21; u.nBodies.value = Math.min(bodies.list.length, 32);
+  }
   if (hands.mode === 'mouse' && live) { u.hands[0].active.value = creator.isBusy() ? 1 : 0.6; u.hands[0].pinch.value = mode === 'playground' && creator.gatherHeld > 0 ? 1 : 0; }
   creator.enabled = started && creating() && !focus;
   creator.tickMouse(now); creator.update(dt, now);
@@ -851,7 +876,7 @@ renderer.setAnimationLoop((now) => {
   const play = mode === 'playground' && started;
   bodies.g = play ? studio.g : 1; bodies.trails.visible = !play || studio.trails;
   if (mode === 'system' || mode === 'playground' || !started) bodies.step(play ? dt * studio.timeScale : dt);
-  bodyEvents();
+  bodyEvents(); orbitChimes();
   updateEffects(dt);
   nebula.update(renderer, dt, now / 1000);
   if (galaxy.sprite.visible && u.fade.value > 0.001) renderer.compute(galaxy.compute);

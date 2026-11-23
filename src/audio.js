@@ -52,3 +52,56 @@ export function gathering(on, amount = 0) {
   if (on && !gatherOsc) { gatherOsc = ac.createOscillator(); gatherGain = ac.createGain(); gatherGain.gain.value = 0; gatherOsc.type = 'triangle'; gatherOsc.connect(gatherGain).connect(verb); gatherOsc.start(); }
   if (gatherOsc) { gatherOsc.frequency.setTargetAtTime(220 + amount * 300, ac.currentTime, 0.1); gatherGain.gain.setTargetAtTime(on ? 0.05 + amount * 0.04 : 0, ac.currentTime, 0.08); }
 }
+
+// ---------------------------------------------------------------- music of the spheres
+// Every planet gets a note from a D-major pentatonic scale (any mix of them sounds consonant): gas giants low,
+// rocky and ocean worlds in the middle, ice worlds high. It rings softly each time the planet completes an orbit.
+const PENTA = [0, 2, 4, 7, 9];
+const noteHz = (i) => { const m = 50 + 12 * Math.floor(i / 5) + PENTA[((i % 5) + 5) % 5]; return 440 * Math.pow(2, (m - 69) / 12); };
+const RANGE = { gas: [2, 6], terran: [7, 10], desert: [6, 9], lava: [8, 11], ice: [10, 14] };
+export function noteFor(kind) { const [a, b] = RANGE[kind] || [6, 11]; return a + Math.floor(Math.random() * (b - a + 1)); }
+
+/** a soft bell (sine with two quiet partials), panned left/right */
+function bell(freq, gain = 0.12, pan = 0, dur = 2.6) {
+  if (!ac) return; const t = ac.currentTime;
+  const p = ac.createStereoPanner ? ac.createStereoPanner() : null; if (p) p.pan.value = Math.max(-1, Math.min(1, pan));
+  const out = ac.createGain(); out.gain.value = 1; (p ? out.connect(p) : out); const dest = p || out;
+  [[1, 1], [2.0, 0.22], [3.01, 0.08]].forEach(([r, g]) => {
+    const o = ac.createOscillator(), e = ac.createGain(); o.type = 'sine'; o.frequency.value = freq * r;
+    e.gain.setValueAtTime(0, t); e.gain.linearRampToValueAtTime(gain * g, t + 0.008); e.gain.exponentialRampToValueAtTime(0.0001, t + dur / r);
+    o.connect(e).connect(out); o.start(t); o.stop(t + dur + 0.1);
+  });
+  dest.connect(master); dest.connect(verb);
+}
+let lastChimes = [];
+/** a planet's own note; rate-limited so busy skies stay gentle */
+export function planetNote(note, size = 0.5, pan = 0) {
+  if (!ac) return; const now = ac.currentTime; lastChimes = lastChimes.filter((x) => now - x < 1);
+  if (lastChimes.length >= 6) return; lastChimes.push(now);
+  bell(noteHz(note), 0.07 + Math.min(0.08, size * 0.06), pan);
+}
+/** a new planet: its note, a little brighter */
+export function planetBorn(note, pan = 0) { bell(noteHz(note), 0.16, pan, 3); }
+/** a new star: a warm chord that swells and fades (root, fifth, ninth), lower for bigger stars */
+export function starBorn(size = 0.5, pan = 0) {
+  if (!ac) return; const t = ac.currentTime; const root = Math.max(0, 7 - Math.round(size * 4));
+  [0, 3, 6].forEach((step, k) => {
+    const f = noteHz(root + step), o = ac.createOscillator(), e = ac.createGain(), lp = ac.createBiquadFilter();
+    o.type = 'triangle'; o.frequency.value = f; lp.type = 'lowpass'; lp.frequency.value = 1400;
+    e.gain.setValueAtTime(0, t); e.gain.linearRampToValueAtTime(0.06 / (k + 1) + 0.03, t + 0.25 + k * 0.06); e.gain.exponentialRampToValueAtTime(0.0001, t + 3.4);
+    o.connect(lp).connect(e); e.connect(master); e.connect(verb); o.start(t); o.stop(t + 3.6);
+  });
+  bell(noteHz(root + 10), 0.06, pan, 2.4);
+}
+/** two worlds merge: a soft low bloom instead of a thud */
+export function mergeBloom(pan = 0) { bell(noteHz(3), 0.14, pan, 2.2); setTimeout(() => bell(noteHz(1), 0.1, pan, 2.6), 90); }
+/** a black hole forms: a deep falling tone */
+export function holeBorn() {
+  if (!ac) return; const t = ac.currentTime; const o = ac.createOscillator(), e = ac.createGain(), lp = ac.createBiquadFilter();
+  o.type = 'sawtooth'; o.frequency.setValueAtTime(noteHz(5), t); o.frequency.exponentialRampToValueAtTime(noteHz(0) / 2, t + 2.2);
+  lp.type = 'lowpass'; lp.frequency.setValueAtTime(900, t); lp.frequency.exponentialRampToValueAtTime(120, t + 2.2);
+  e.gain.setValueAtTime(0, t); e.gain.linearRampToValueAtTime(0.18, t + 0.1); e.gain.exponentialRampToValueAtTime(0.0001, t + 2.6);
+  o.connect(lp).connect(e); e.connect(master); e.connect(verb); o.start(t); o.stop(t + 2.7);
+}
+/** after the boom: a rising shimmer of scale notes */
+export function shimmer() { [10, 12, 14, 15, 17].forEach((n, i) => setTimeout(() => bell(noteHz(n), 0.07, (i - 2) * 0.3, 2.4), 120 + i * 90)); }
