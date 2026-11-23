@@ -501,10 +501,12 @@ glc.addEventListener('wheel', (e) => {
 }, { passive: false });
 addEventListener('keydown', (e) => {
   if (!started) return;
-  if (e.key === 'Escape') goUp();
+  if (e.key === 'Escape') { if (!$('keys').hidden) { $('keys').hidden = true; return; } goUp(); }
   if (e.key === 'b' && creating()) toggleHoleTool();
   if (e.key === 'r') toggleRecord();
   if (e.key === 'v') $('btnFeed').click();
+  if (e.key === 'm') setSound(!muted);
+  if (e.key === '?') $('keys').hidden = !$('keys').hidden;
   if (e.key === 't') setTrueScale(systemView.scale.k < 0.5);
   if (e.key === '1') goPlayground(); if (e.key === '2') goSolarSystem(); if (e.key === '3') goUniverse();
 });
@@ -530,7 +532,7 @@ function toggleRecord() {
 
 // ================================================================ HUD: places, breadcrumb, one short panel, coach
 const PANEL = {
-  playground: { title: 'Playground', cam: ['🤏 <b>Pinch &amp; hold</b>, let go → star', '🤏 <b>Quick pinch</b> near a star → planet', '✊✊ <b>Two fists</b> together → black hole', '🤏 <b>Pinch a world</b> to grab and throw it'], mouse: ['<b>Hold</b> in space, release → star', '<b>Click</b> near a star → planet', '<b>Drag</b> a world to throw it', '<b>B</b> → black hole'] },
+  playground: { title: 'Playground', cam: ['🤏 <b>Pinch &amp; hold</b>, let go → star', '🤏 <b>Quick pinch</b> near a star → planet', '✊✊ <b>Two fists</b> together → black hole', '🤏 <b>Pinch a world</b> to grab and throw it'], mouse: ['<b>Hold</b> in space, release → star', '<b>Click</b> near a star → planet', '<b>Drag</b> a world to throw it', '<b>B</b> → black hole · <b>?</b> all shortcuts'] },
   system: { title: 'Star system', cam: ['🤏 <b>Pinch</b> to add planets and stars', '👉 <b>Point &amp; hold</b> a planet → close-up', '✋✋ <b>Both palms</b> → back'], mouse: ['<b>Hold / click</b> in space to add worlds', '<b>Click</b> a planet → close-up', '<b>Drag</b> to turn · <b>Esc</b> back'] },
   galaxy: { title: 'A galaxy', cam: ['✋ <b>Move your hand</b> through the stars', '👉 <b>Point &amp; hold</b> a glowing star system', '✋✋ <b>Both palms</b> → back'], mouse: ['<b>Move</b> through the stars', '<b>Click</b> a glowing star system', '<b>Esc</b> → back'] },
   universe: { title: 'The universe', cam: ['✋ <b>Open palm</b> turns the sky', '👉 <b>Point &amp; hold</b> a galaxy to fly in'], mouse: ['<b>Drag</b> to turn, <b>scroll</b> to zoom', '<b>Click</b> a galaxy to fly in'] },
@@ -629,7 +631,7 @@ if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
 const status = $('status'); const simDate = $('simDate');
 async function start(m) {
   document.querySelectorAll('.cta button').forEach((b) => (b.disabled = true));
-  sfx.initAudio();
+  sfx.initAudio(); sfx.setMuted(muted);
   try { if (m === 'camera') { status.textContent = 'Waking the stars…'; await hands.initCamera(); updateCover(); } else hands.initMouse(glc); }
   catch (e) { console.warn(e); hands.initMouse(glc); banner('Camera unavailable — using the mouse. Allow camera access, then click 🖱 Mouse to switch.'); }
   gsap.to('#intro', { opacity: 0, duration: 0.9, ease: 'power2.inOut', onComplete: () => ($('intro').hidden = true) });
@@ -652,6 +654,10 @@ async function switchInput() {
 $('btnCam').onclick = () => start('camera');
 $('btnMouse').onclick = () => start('mouse');
 $('btnRec').onclick = toggleRecord;
+let muted = localStorage.getItem('aether.muted') === '1';
+function setSound(off) { muted = off; sfx.setMuted(off); localStorage.setItem('aether.muted', off ? '1' : '0'); $('btnSound').textContent = off ? 'Sound off' : 'Sound on'; $('btnSound').classList.toggle('dim', off); }
+$('btnSound').onclick = () => setSound(!muted);
+setSound(muted);
 $('btnInput').onclick = switchInput;
 $('coachSkip').onclick = () => { $('coach').hidden = true; };
 $('btnFeed').onclick = () => { gsap.to(U.feed, { value: U.feed.value > 0.5 ? 0 : 1, duration: 0.8 }); $('btnFeed').classList.toggle('on', U.feed.value <= 0.5); };

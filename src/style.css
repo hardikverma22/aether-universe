@@ -148,3 +148,9 @@ button:focus-visible { outline: 2px solid #9fb4ff; outline-offset: 3px; }
 #legendList button:hover i, #legendList button.on i { transform: scale(1.35); }
 #legendList button em { font-style: normal; font-size: 11px; color: #8590aa; font-variant-numeric: tabular-nums; }
 @media (max-width: 760px) { #legend { top: auto; bottom: 74px; transform: none; max-height: 40vh; right: 8px; } #legendList button em { display: none; } }
+
+#tools button.dim { color: #8f97ad; }
+#keys { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); padding: 22px 26px; border-radius: 18px; background: rgba(8,10,22,.82); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); pointer-events: auto; min-width: 340px; }
+#keys b { display: block; font-weight: 500; font-size: 18px; margin-bottom: 14px; }
+#keys dl { display: grid; grid-template-columns: auto 1fr; gap: 9px 18px; margin: 0; font-size: 14px; }
+#keys dt { color: #cfe5ff; font-variant-numeric: tabular-nums; } #keys dd { margin: 0; color: #c3cbe0; }
