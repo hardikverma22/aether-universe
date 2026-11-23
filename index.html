@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="theme-color" content="#03030a" />
-  <title>Aether — hold a galaxy in your hands</title>
+  <title>Aether — make a universe with your hands</title>
   <link rel="stylesheet" href="/src/style.css" />
 </head>
 <body>
@@ -12,22 +12,32 @@
   <canvas id="overlay"></canvas>
 
   <section id="intro">
-    <p class="eyebrow">A WebGPU experiment</p>
-    <h1 id="title">Aether</h1>
-    <p class="lede">Fly from the edge of the universe down to our own Solar System — with your hands.</p>
-    <div class="cta">
-      <button id="btnCam" class="primary">Use my hands</button>
-      <button id="btnMouse">Use the mouse</button>
+    <div class="hero">
+      <p class="eyebrow">Aether</p>
+      <h1 id="title">Make a universe<br />with your hands.</h1>
+      <p class="lede">Pinch stardust into stars. Throw planets into orbit. Feed a black hole. All in your browser, with just your webcam.</p>
+      <ul class="moves">
+        <li><span>🤏</span> pinch &amp; hold <em>→ star</em></li>
+        <li><span>🤏</span> quick pinch <em>→ planet</em></li>
+        <li><span>✊✊</span> two fists <em>→ black hole</em></li>
+      </ul>
+      <div class="cta">
+        <button id="btnCam" class="primary">Start with my hands</button>
+        <button id="btnMouse">Use the mouse</button>
+      </div>
+      <p class="fine">Hand tracking runs on your device. The camera image never leaves this page.</p>
     </div>
-    <p class="fine">Hand tracking runs on your device. The camera image never leaves this page.</p>
   </section>
 
   <div id="hud" hidden>
-    <nav id="crumbs"></nav>
-    <div id="tools"><button id="btnCreate" title="Make your own planets, stars and black holes (C)" hidden>✦ Create</button><button id="btnInput" title="Switch between hands and mouse">✋ Hands</button><button id="btnFeed" title="Show yourself behind the scene (V)">You</button><button id="btnRec" title="Record a 9:16 clip (R)">● Record</button></div>
-    <div id="tools2" hidden>
-      <button data-tool="planet" class="on">● Planet</button><button data-tool="star">✦ Star</button><button data-tool="hole">◉ Black hole</button><button data-tool="nebula">☁ Nebula</button><button id="btnClear">Clear</button>
-    </div>
+    <nav id="places">
+      <button data-place="playground">✦ Playground</button>
+      <button data-place="sol">☀ Solar System</button>
+      <button data-place="universe">◌ Universe</button>
+    </nav>
+    <nav id="crumbs" hidden></nav>
+    <div id="tools"><button id="btnInput" title="Switch between hands and mouse">✋ Hands</button><button id="btnFeed" title="Show yourself behind the scene (V)">You</button><button id="btnRec" title="Record a 9:16 clip (R)">● Record</button></div>
+    <div id="tools2" hidden><button id="btnHole" title="Black hole (B)">◉ Black hole</button><button id="btnClear">Clear</button></div>
     <aside id="panel"><div id="panelTitle"></div><ul id="guide"></ul></aside>
     <div id="coach" hidden><div class="cstep"></div><div class="ctext"></div><div class="cdots"></div><button id="coachSkip">Skip</button></div>
     <div id="banner" hidden></div>

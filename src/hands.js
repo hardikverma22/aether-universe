@@ -21,7 +21,7 @@ class OneEuro {
 // Debounced on/off gesture with hysteresis
 class Latch {
   constructor(on, off) { this.onT = on; this.offT = off; this.on = false; this.v = 0; }
-  update(raw) { if (!this.on && raw > this.onT) this.on = true; else if (this.on && raw < this.offT) this.on = false; this.v += ((this.on ? 1 : 0) - this.v) * 0.5; return this.v; }
+  update(raw) { if (!this.on && raw > this.onT) this.on = true; else if (this.on && raw < this.offT) this.on = false; this.v += ((this.on ? 1 : 0) - this.v) * 0.8; return this.v; }
 }
 
 function makeHand() {
@@ -31,7 +31,7 @@ function makeHand() {
     draw: null, sVel: Array.from({ length: 21 }, () => ({ x: 0, y: 0 })), // smoothed + predicted landmarks for drawing
     target: new THREE.Vector3(), mvel: new THREE.Vector3(), tResult: 0, _fistT: -1e9, _burstT: -1e9,
     f: [new OneEuro(), new OneEuro(), new OneEuro(0.8, 0.4)],
-    lat: { pinch: new Latch(0.7, 0.4), fist: new Latch(0.72, 0.45), point: new Latch(0.7, 0.4) },
+    lat: { pinch: new Latch(0.6, 0.35), fist: new Latch(0.65, 0.4), point: new Latch(0.62, 0.38) },   // quick to engage, hysteresis to stay stable
   };
 }
 

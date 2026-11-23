@@ -11,7 +11,7 @@ export function makeGalaxy({ count, bodies }) {
   const home = instancedArray(count, 'vec4'); // xyz in galaxy frame, w = radius 0..1
 
   const u = {
-    time: uniform(0), dt: uniform(1 / 60), tilt: uniform(1.08), spin: uniform(1), alpha: uniform(0.26), viewDir: uniform(new THREE.Vector3(0, 0, -1)), nearFade: uniform(new THREE.Vector2(0.25, 1.2)),
+    time: uniform(0), dt: uniform(1 / 60), tilt: uniform(1.08), spin: uniform(1), alpha: uniform(0.26), viewDir: uniform(new THREE.Vector3(0, 0, -1)), starPull: uniform(0.22), gather: uniform(19), nearFade: uniform(new THREE.Vector2(0.25, 1.2)),
     hands: [0, 1].map(() => ({ pos: uniform(new THREE.Vector3()), vel: uniform(new THREE.Vector3()),
       active: uniform(0), pinch: uniform(0), fist: uniform(0), open: uniform(0), burst: uniform(0), point: uniform(0) })),
     // all 42 hand landmarks in world space (z = 99 when a hand is absent): stars flow around your fingers
@@ -45,8 +45,11 @@ export function makeGalaxy({ count, bodies }) {
     const inRing = h4.greaterThan(0.25);
     const rr0 = select(inRing, float(2.0).add(h3.sub(0.5).mul(0.55)), pow(h1, 2.0).mul(0.6));
     const ring = vec3(cos(h2.mul(PI2)).mul(rr0), thick.mul(0.6), sin(h2.mul(PI2)).mul(rr0));
-    const disc = select(u.shape.equal(2), ellip, select(u.shape.equal(3), ring, select(isBar, bar, spiral)));
-    const rad01 = select(u.shape.equal(2), er.div(2.4), select(u.shape.equal(3), rr0.div(2.3), r.div(2.7)));
+    // stardust cloud (4): a soft, wide, slightly lumpy nebula for the Playground
+    const cr = pow(h1, 0.55).mul(3.6); const ca = h2.mul(PI2).add(cr.mul(0.35));
+    const cloud = vec3(cos(ca).mul(cr), h3.sub(0.5).mul(0.9).mul(exp(cr.negate().mul(0.35))), sin(ca).mul(cr).mul(0.8));
+    const disc = select(u.shape.equal(4), cloud, select(u.shape.equal(2), ellip, select(u.shape.equal(3), ring, select(isBar, bar, spiral))));
+    const rad01 = select(u.shape.equal(4), cr.div(3.6), select(u.shape.equal(2), er.div(2.4), select(u.shape.equal(3), rr0.div(2.3), r.div(2.7))));
     // halo: points on a fuzzy sphere
     const th = h2.mul(PI2), ph = h3.mul(2).sub(1).acos(), rr = pow(h1, 0.5).mul(3.2).add(0.6);
     const halo = vec3(sin(ph).mul(cos(th)), cos(ph).mul(0.6), sin(ph).mul(sin(th))).mul(rr);
@@ -80,7 +83,7 @@ export function makeGalaxy({ count, bodies }) {
       grabAll.assign(max(grabAll, grab.mul(far)));
       force.addAssign(h.vel.mul(near).mul(4.8).mul(h.active));                                  // wind from a sweeping hand
       force.addAssign(cross(dn, vec3(0, 0, 1)).mul(near).mul(1.1).mul(h.active));               // gentle vortex around the hand
-      force.addAssign(dn.mul(grab).mul(far).mul(19).mul(smoothstep(0.04, 0.32, r)));            // gather into a knot
+      force.addAssign(dn.mul(grab).mul(far).mul(u.gather).mul(smoothstep(0.04, 0.32, r)));      // stardust flows into your fingers
       force.addAssign(cross(dn, normalize(vec3(0.3, 1, 0.2))).mul(grab).mul(far).mul(5));       // ...that swirls
       force.addAssign(dn.mul(h.burst).mul(exp(r2.div(6).negate())).mul(-42));                    // explode outward
       // star-trail spell: pointing pulls stars tightly onto the fingertip, leaving a comet tail
@@ -103,7 +106,7 @@ export function makeGalaxy({ count, bodies }) {
     if (bodies) Loop({ start: int(0), end: int(bodies.array.length) }, ({ i }) => {
       const b = bodies.element(i); const m = b.w; const am = abs(m);
       const dbd = b.xyz.sub(p); const r2b = dot(dbd, dbd).add(0.02); const rbd = sqrt(r2b);
-      const k = select(m.lessThan(0), float(2.4), float(0.22)); // black holes pull hard; stars and planets only nudge
+      const k = select(m.lessThan(0), float(2.4), u.starPull); // black holes pull hard; stars swirl stardust around them
       force.addAssign(clamp(dbd.mul(am.mul(k).div(r2b.mul(rbd))), -25, 25));
       grabAll.assign(max(grabAll, min(am.mul(exp(r2b.div(0.25).negate())).mul(0.6), 0.9).mul(select(m.lessThan(0), float(1), float(0.15)))));
       // black holes: stars spiral in as an accretion disk and vanish well outside the visible horizon (dark shadow)

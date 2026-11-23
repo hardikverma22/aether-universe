@@ -1,18 +1,29 @@
 # Aether
 
-A universe in your hands. Fly through a cosmic web of 110 procedural galaxies, dive into any of them (240,000 GPU particles each), and create stars, planets, black holes and nebulae with real gravity, controlled live by webcam hand tracking (MediaPipe) or the mouse. Built on three.js WebGPU.
+**Make a universe with your hands.** Pinch stardust into stars, throw planets into orbit, feed a black hole — in the browser, with just a webcam (or a mouse). three.js WebGPU + TSL, MediaPipe hand tracking.
 
-## The journey
-One continuous trip with a breadcrumb at the top and a panel saying what you can do at each level:
+See [docs/PRODUCT.md](docs/PRODUCT.md) for what it is and why.
 
-1. **Universe**: 110 procedural galaxies on the cosmic web. Drag/scroll, or open palm / two palms; click or point-and-hold a galaxy to fly in.
-2. **Galaxy**: 240k-particle galaxy you can play with (sweep, pinch, fist→open, two-hand Big Bang), plus glowing star systems. Aether Prime contains **Sol**.
-3. **Star system**: our real **Solar System** (NASA-based textures: Sun, 8 planets, Moon, Saturn's rings, Milky Way sky, real tilts, Kepler orbits) or a procedural exoplanet system built from the same real surfaces. **✦ Create** (C) lives here: launch planets into orbit, add stars, black holes, nebulae.
-4. **Close-up**: click or point-and-hold any planet, moon or the Sun.
+## Three places (top bar, or keys 1 · 2 · 3)
+- **✦ Playground** — empty space full of stardust. Create anything.
+- **☀ Solar System** — our real Sun and planets (NASA-based textures). You can add worlds here too.
+- **◌ Universe** — 110 procedural galaxies; fly into one, visit its star systems and create there.
 
-Esc, scrolling out, holding both palms still, or the breadcrumb takes you back up. `?seed=42` generates a different universe.
+## Hands
+| Gesture | Does |
+|---|---|
+| 🤏 pinch & hold, let go | gather stardust → **star** (longer = bigger) |
+| 🤏 quick pinch, let go | **planet** (move as you let go to throw; a golden line previews the orbit) |
+| 🤏 pinch a world | grab it, move it, throw it |
+| 🤏🤏 both hands on one star, pull apart | it swells… then **supernova** |
+| ✊✊ two fists together | **black hole** |
+| 👉 point & hold | go closer (galaxy → system → planet close-up) |
+| ✋✋ both palms still | go back |
 
-Textures: [Solar System Scope](https://www.solarsystemscope.com/textures/) (CC BY 4.0), see `public/textures/CREDITS.md`.
+## Mouse
+Hold in space → star · click near a star → planet · drag a world → throw it · **B** → black hole · click/double-click a planet → close-up · **Esc** → back.
+
+On battery, Chrome's Energy Saver caps pages at 30 fps — plug in or turn it off for 60 fps.
 
 ## Play gestures
 - **Sweep**: blow the stars
