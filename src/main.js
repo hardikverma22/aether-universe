@@ -375,7 +375,10 @@ const glc = $('gl'); let drag = null;
 const creating = () => mode === 'playground' || mode === 'system';
 glc.addEventListener('pointerdown', (e) => {
   if (!started) return; const now = performance.now();
-  if (creating() && hands.mode === 'mouse' && creator.mouseDown(e, now)) { drag = { x: e.clientX, y: e.clientY, moved: 0, creating: true }; return; }
+  // a click on one of the system's own planets (or its sun) is for visiting it, never for creating
+  const own = mode === 'system' && !creator.mouseTool ? pickWorld(e.clientX, e.clientY) : null;
+  const ownHit = own && !bodies.list.includes(own);
+  if (creating() && !ownHit && hands.mode === 'mouse' && creator.mouseDown(e, now)) { drag = { x: e.clientX, y: e.clientY, moved: 0, creating: true }; return; }
   drag = { x: e.clientX, y: e.clientY, moved: 0 };
 });
 addEventListener('pointermove', (e) => {
