@@ -4,7 +4,7 @@
 import * as THREE from 'three/webgpu';
 import {
   Fn, float, vec3, vec4, uniform, uniformArray, uv, length, smoothstep, mix, sin, atan, time, mx_noise_float, positionLocal,
-  normalWorld, dot, max, instancedBufferAttribute, normalize,
+  normalWorld, dot, max, instancedBufferAttribute, normalize, select,
 } from 'three/tsl';
 
 import { makeStarLook, makePlanetLook, planetRadius, PLANET_KINDS, blackbody, starTemp, spectralClass } from './looks.js';
@@ -34,7 +34,7 @@ export class Bodies {
     const tm = new THREE.SpriteNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
     tm.positionNode = T.xyz; tm.colorNode = vec4(TC, 1);
     tm.opacityNode = smoothstep(0.5, 0.0, length(uv().sub(0.5))).mul(T.w).mul(0.7);
-    tm.scaleNode = T.w.mul(0.028).add(0.004);
+    tm.scaleNode = select(T.w.greaterThan(0.0), T.w.mul(0.028).add(0.004), float(0));   // unused trail slots: zero size, no cost
     this.trails = new THREE.Sprite(tm); this.trails.count = MAX * TRAIL; this.trails.frustumCulled = false;
     scene.add(this.trails);
     this.frame = 0;

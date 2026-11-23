@@ -1,5 +1,5 @@
-// Real spacecraft (NASA 3D Resources glTF models) placed where they really are, and an asteroid belt made from
-// the real shape of asteroid Bennu. Spacecraft are enlarged so they can be seen at all; their labels say so.
+// Real spacecraft (NASA 3D Resources glTF models) placed where they really are, plus
+// an asteroid belt of light instanced rocks. Spacecraft are enlarged so they can be seen at all; their labels say so.
 import * as THREE from 'three/webgpu';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
@@ -34,32 +34,31 @@ export function makeCraft(root) {
   group.add(new THREE.HemisphereLight(0x8899bb, 0x050507, 0.08));
   const items = CRAFT.map((c) => ({ ...c, def: { kind: 'Spacecraft', craft: true }, radius: c.size * 0.6, pos: new THREE.Vector3(), group: null }));
   items.forEach((it) => load('/models/' + it.file).then((obj) => {
-    obj.traverse((m) => { if (m.isMesh) { m.frustumCulled = false; if (m.material) m.material.side = THREE.DoubleSide; } });
+    obj.traverse((m) => { if (m.isMesh && m.material) m.material.side = THREE.DoubleSide; });
     it.group = fit(obj, it.size); group.add(it.group);
   }).catch((e) => console.warn('model', it.file, e)));
 
-  // asteroid belt: instanced copies of Bennu's real shape, between Mars and Jupiter
-  let belt = null;
-  load('/models/bennu.glb').then((obj) => {
-    let geo = null; obj.traverse((m) => { if (m.isMesh && !geo) geo = m.geometry; });
-    geo = geo.clone(); geo.computeBoundingSphere(); geo.translate(...geo.boundingSphere.center.clone().negate().toArray());
-    geo.scale(1 / geo.boundingSphere.radius, 1 / geo.boundingSphere.radius, 1 / geo.boundingSphere.radius); geo.computeVertexNormals();
-    const mat = new THREE.MeshStandardNodeMaterial({ color: 0x8a8178, roughness: 0.95, metalness: 0 });
-    const N = 700, rnd = mulberry32(7); belt = new THREE.InstancedMesh(geo, mat, N); belt.frustumCulled = false;
-    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), p = new THREE.Vector3(), s = new THREE.Vector3();
-    belt.userData.orbits = [];
+  // asteroid belt between Mars and Jupiter: one light, lumpy rock shape (42 points), instanced; rocks are only a few pixels wide
+  const rockGeo = new THREE.IcosahedronGeometry(1, 1); {
+    const P = rockGeo.attributes.position, v3 = new THREE.Vector3(), r = mulberry32(3);
+    const bumps = Array.from({ length: 6 }, () => new THREE.Vector3(r() - 0.5, r() - 0.5, r() - 0.5).normalize());
+    for (let i = 0; i < P.count; i++) { v3.fromBufferAttribute(P, i); let k = 1; for (const b of bumps) k -= Math.max(0, v3.dot(b)) * 0.18; v3.multiplyScalar(k); P.setXYZ(i, v3.x, v3.y, v3.z); }
+    rockGeo.computeVertexNormals();
+  }
+  const rockMat = new THREE.MeshStandardNodeMaterial({ color: 0x8a8178, roughness: 0.95, metalness: 0, flatShading: true });
+  const N = 900, rnd = mulberry32(7); const belt = new THREE.InstancedMesh(rockGeo, rockMat, N);
+  { const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), p = new THREE.Vector3(), s = new THREE.Vector3();
     for (let i = 0; i < N; i++) {
       const r = 5.55 + (rnd() + rnd() + rnd()) / 3 * 0.9, a = rnd() * Math.PI * 2, y = (rnd() - 0.5) * 0.28 * (r / 6);
-      belt.userData.orbits.push({ r, a, y, w: 0.02 * Math.pow(6 / r, 1.5) });
       p.set(Math.cos(a) * r, y, Math.sin(a) * r); q.setFromEuler(e.set(rnd() * 6, rnd() * 6, rnd() * 6));
       const k = 0.0025 + Math.pow(rnd(), 4) * 0.011; s.set(k, k * (0.7 + rnd() * 0.5), k);
       belt.setMatrixAt(i, m4.compose(p, q, s));
     }
-    group.add(belt);
-  }).catch((e) => console.warn('bennu', e));
+    belt.computeBoundingSphere(); }
+  group.add(belt);
 
   const v = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
-  function update(dt, t, bodiesByName, k = 0) {
+  function update(dt, t, bodiesByName, k = 0, camera = null, focus = null) {
     const geo = (a, b) => a * Math.pow(b / a, k);
     for (const it of items) {
       let size = 1;
@@ -74,9 +73,15 @@ export function makeCraft(root) {
         }
       }
       it.radius = it.size * 0.6 * size;
-      if (it.group) { it.group.position.copy(it.pos); it.group.scale.setScalar(size); it.group.rotation.y += dt * 0.15; }
+      if (it.group) {
+        it.group.position.copy(it.pos); it.group.scale.setScalar(size); it.group.rotation.y += dt * 0.15;
+        // skip drawing a spacecraft smaller than a pixel (most of the time): it costs as much as a visible one
+        const px = camera ? (it.size * size / camera.position.distanceTo(it.pos)) * innerHeight : 99;
+        it.group.visible = px > 0.6 || focus === it;
+      }
     }
-    if (belt) { belt.rotation.y -= dt * 0.004; belt.scale.setScalar(geo(1, 2.7 * AU / 6)); }
+    belt.rotation.y -= dt * 0.004; belt.scale.setScalar(geo(1, 2.7 * AU / 6)); belt.visible = !lite;
   }
-  return { group, items, update, setVisible(on) { group.visible = on; } };
+  let lite = false;
+  return { group, items, update, setVisible(on) { group.visible = on; }, setLite(on) { lite = on; } };
 }

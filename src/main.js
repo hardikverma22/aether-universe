@@ -56,7 +56,7 @@ const galaxy = makeGalaxy({ count: small ? 90000 : 240000, bodies: bodies.gpu })
 scene.add(galaxy.sprite);
 const nebula = makeNebula({ count: small ? 16000 : 40000 });
 scene.add(nebula.sprite);
-const systemView = makeSystemView(scene);
+const systemView = makeSystemView(scene, camera, { get current() { return focus; } });
 
 const pipeline = new THREE.RenderPipeline(renderer);
 const scenePass = pass(scene, camera);
@@ -679,11 +679,25 @@ document.querySelectorAll('#places [data-place]').forEach((b) => (b.onclick = ()
 
 // ================================================================ loop
 let last = performance.now();
+// safety cutoff: if frames stay slow for a few seconds, drop the heavy extras so the device stays responsive
+const perf = { ema: 16, slow: 0, lite: false };
+function guard(raw, dt) {
+  if (document.hidden || raw > 1000) return;           // tab switches and stalls aren't a measure of steady load
+  perf.ema += (raw - perf.ema) * 0.05;
+  perf.slow = perf.ema > 48 ? perf.slow + dt : Math.max(0, perf.slow - dt * 2);
+  if (perf.slow > 3 && !perf.lite) setLite(true);
+}
+function setLite(on) {
+  perf.lite = on; systemView.setLite(on);
+  renderer.setPixelRatio(on ? 1 : Math.min(devicePixelRatio, 1.25)); renderer.setSize(innerWidth, innerHeight);
+  if (on) say('Lighter graphics', 'Your device was working hard, so a few extras are now off');
+}
 const FRAME_MS = 1000 / 61;
 const FAR = new THREE.Vector3(0, 0, 1e4);
 renderer.setAnimationLoop((now) => {
   if (now - last < FRAME_MS - 1) return;
-  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  const raw = now - last; const dt = Math.min(0.05, raw / 1000); last = now;
+  guard(raw, dt);
   hands.update(now, dt, videoToScreen, toWorld);
   handNavigation(dt);
   if (mode === 'system') systemView.update(dt);   // move the worlds first so the camera follows this frame's positions
@@ -727,11 +741,12 @@ renderer.setAnimationLoop((now) => {
   recordFrame();
 });
 
+if (q.has('lite')) setLite(true);
 if (q.has('debug')) {
   const el = document.createElement('div'); el.id = 'debug'; el.style.cssText = 'position:fixed;top:8px;left:50%;transform:translateX(-50%);font:12px ui-monospace,monospace;color:#9fb4ff;z-index:9';
   document.body.append(el); let frames = 0, t = performance.now(), lastR = last;
   (function loop() { if (last !== lastR) { frames++; lastR = last; } const n = performance.now(); if (n - t > 500) { const st = hands.stats;
-    el.textContent = `render ${(frames * 1000 / (n - t)).toFixed(0)} fps · tracking ${(st.hz || 0).toFixed(0)} Hz · ${mode}${focus ? ' · ' + describe(focus)[0] : ''} · bodies ${bodies.list.length}`; frames = 0; t = n; }
+    el.textContent = `render ${(frames * 1000 / (n - t)).toFixed(0)} fps · frame ${perf.ema.toFixed(1)} ms${perf.lite ? ' · lite' : ''} · tracking ${(st.hz || 0).toFixed(0)} Hz · ${mode}${focus ? ' · ' + describe(focus)[0] : ''} · bodies ${bodies.list.length}`; frames = 0; t = n; }
     requestAnimationFrame(loop); })();
 }
-window.__aether = { renderer, galaxy, hands, camera, rig, universe, systemView, bodies, nebula, creator, enterGalaxy, exitGalaxy, enterSystem, exitSystem, goPlayground, goSolarSystem, goUniverse, focusOn, unfocus, goUp, get mode() { return mode; }, get current() { return current; }, get focus() { return focus; }, made };
+window.__aether = { renderer, galaxy, hands, camera, rig, universe, systemView, bodies, nebula, creator, enterGalaxy, exitGalaxy, enterSystem, exitSystem, goPlayground, goSolarSystem, goUniverse, focusOn, unfocus, goUp, get mode() { return mode; }, get current() { return current; }, get focus() { return focus; }, made, perf, setLite };

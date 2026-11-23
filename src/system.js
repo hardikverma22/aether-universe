@@ -213,7 +213,7 @@ function planetMesh(p, sunColor) {
 }
 
 // ---------------------------------------------------------------- the view
-export function makeSystemView(scene) {
+export function makeSystemView(scene, camera, focusRef = { current: null }) {
   const root = new THREE.Group(); root.visible = false; scene.add(root);
   // Milky Way sky (we're inside a galaxy now)
   const sm = new THREE.MeshBasicNodeMaterial({ side: THREE.BackSide, depthWrite: false });
@@ -228,7 +228,12 @@ export function makeSystemView(scene) {
   const scale = { k: 0 }; const geo = (a, b) => a * Math.pow(b / a, scale.k); let sunR = 1;
   const UP = new THREE.Vector3(0, 1, 0), q = new THREE.Quaternion(), qs = new THREE.Quaternion(), v = new THREE.Vector3();
 
-  function clear() { objs.forEach((o) => { root.remove(o.group); root.remove(o.orbitLine); o.moons.forEach((m) => root.remove(m.group)); }); if (sun) root.remove(sun.group); objs = []; sun = null; }
+  // free everything a system built (materials compile GPU pipelines; the shared sphere and cached textures are kept)
+  function dispose(obj) { obj.traverse((m) => { if (m.geometry && m.geometry !== SPHERE) m.geometry.dispose(); const mats = Array.isArray(m.material) ? m.material : m.material ? [m.material] : []; mats.forEach((x) => x.dispose()); }); }
+  function clear() {
+    objs.forEach((o) => { root.remove(o.group); dispose(o.group); root.remove(o.orbitLine); dispose(o.orbitLine); o.moons.forEach((m) => { root.remove(m.group); dispose(m.group); }); });
+    if (sun) { root.remove(sun.group); dispose(sun.group); } objs = []; sun = null;
+  }
   function load(d) {
     clear(); def = d; t0 = performance.now() / 1000; clock.date = new Date(); craft.setVisible(!!d.real); sunR = d.star.radius; if (!d.real) scale.k = 0;
     sun = sunMesh(d.star); root.add(sun.group);
@@ -267,7 +272,7 @@ export function makeSystemView(scene) {
           m.spinner.rotation.y = Math.atan2(v.z, -v.x);   // tidally locked: the same face always toward Earth
         }
       }
-      craft.update(dt, performance.now() / 1000 - t0, byName, scale.k);
+      craft.update(dt, performance.now() / 1000 - t0, byName, scale.k, camera, focusRef.current);
       return;
     }
     const t = performance.now() / 1000 - t0;
@@ -287,7 +292,7 @@ export function makeSystemView(scene) {
     }
   }
   return {
-    root, sky, load, update, clock, scale,
+    root, sky, load, update, clock, scale, setLite: (on) => craft.setLite(on),
     get sunRadius() { return sunR; },
     realDistance: (name) => (def?.real && REAL[name]?.a ? sunDistance(name, clock.date) : 0),
     get def() { return def; },
