@@ -31,7 +31,7 @@ function makeHand() {
     draw: null, sVel: Array.from({ length: 21 }, () => ({ x: 0, y: 0 })), // smoothed + predicted landmarks for drawing
     target: new THREE.Vector3(), mvel: new THREE.Vector3(), tResult: 0, _fistT: -1e9, _burstT: -1e9,
     f: [new OneEuro(), new OneEuro(), new OneEuro(0.8, 0.4)],
-    lat: { pinch: new Latch(0.6, 0.35), fist: new Latch(0.65, 0.4), point: new Latch(0.62, 0.38) },   // quick to engage, hysteresis to stay stable
+    lat: { pinch: new Latch(0.6, 0.35), fist: new Latch(0.65, 0.4), point: new Latch(0.62, 0.38), victory: new Latch(0.55, 0.3) }, victory: 0, gesture: 'None',   // quick to engage, hysteresis to stay stable
   };
 }
 
@@ -87,7 +87,7 @@ export class Hands {
       const found = [false, false];
       res.landmarks.forEach((lm, k) => {
         let slot = res.handedness[k] === 'Left' ? 1 : 0; if (found[slot]) slot = 1 - slot; found[slot] = true;
-        this._apply(this.hands[slot], lm, rdt, videoToScreen, toWorld);
+        this._apply(this.hands[slot], lm, rdt, videoToScreen, toWorld, res.gestures?.[k]);
       });
       this.hands.forEach((h, i) => {
         if (found[i]) return;
@@ -98,14 +98,21 @@ export class Hands {
     this._predict(dt);
   }
 
-  _apply(h, lm, dt, videoToScreen, toWorld) {
+  _apply(h, lm, dt, videoToScreen, toWorld, g) {
     const mir = lm.map((p) => ({ x: 1 - p.x, y: p.y, z: p.z }));
     const size = dist(mir[0], mir[9]) + 1e-4;
     const ext = (tip) => dist(mir[tip], mir[0]) / size;              // finger extension
     const tips = (ext(8) + ext(12) + ext(16) + ext(20)) / 4;
     // pointing = index straight, the other three curled; it takes priority over fist and pinch
     const others = (ext(12) + ext(16) + ext(20)) / 3;
-    const pointRaw = ss(1.65, 1.95, ext(8)) * (1 - ss(1.2, 1.5, others)) * ss(0.35, 0.6, dist(mir[4], mir[8]) / size);
+    // MediaPipe's built-in gestures: ✌️ Victory makes a black hole; it must never read as pointing (two fingers up)
+    h.gesture = g?.name || 'None';
+    // geometric ✌️ as well (MediaPipe alone missed ~4 of 9 real V-sign photos, e.g. sideways 'scissors'):
+    // index and middle out and spread apart, ring and little finger curled; joint distances don't depend on rotation
+    const vGeo = ss(1.5, 1.8, ext(8)) * ss(1.5, 1.8, ext(12)) * (1 - ss(1.25, 1.55, (ext(16) + ext(20)) / 2)) * ss(0.28, 0.5, dist(mir[8], mir[12]) / size);
+    const victoryRaw = Math.max(h.gesture === 'Victory' ? g.score : 0, vGeo);
+    h.victory = h.lat.victory.update(victoryRaw);
+    const pointRaw = ss(1.65, 1.95, ext(8)) * (1 - ss(1.2, 1.5, others)) * ss(0.35, 0.6, dist(mir[4], mir[8]) / size) * (1 - ss(0.3, 0.6, victoryRaw)) * (h.victory > 0.5 ? 0 : 1);
     // a pinch made with the other fingers curled (how many people pinch) looks like a fist by finger extension alone;
     // the difference: thumb and index tips touch while the index tip reaches forward, away from its own knuckle
     // (measured on real photos: curled pinch 1.27, fist 0.14 index-tip-to-knuckle, in hand sizes)

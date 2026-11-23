@@ -32,7 +32,7 @@ A small breadcrumb always shows where you are. Both open hands (or Esc) always t
 | 🤏 **Let go quickly** | It becomes a **planet**. Move your hand as you let go to throw it; a glowing line previews its orbit before you release |
 | 🤏 **Hold longer, then let go** | It becomes a **star**: the longer you hold, the bigger and bluer |
 | 🤏 **Pinch something that exists** | Pick it up, move it, and throw it into a new orbit |
-| ✊✊ **Two fists together** | A **black hole** forms between your hands |
+| ✌️ **Hold a peace sign** | A **black hole** forms where your hand is |
 | 🤏🤏 **Pinch a star with both hands and pull apart** | It swells into a giant. Pull too far and it goes **supernova** |
 | ✋ **Move an open hand** | Push stardust and gas like wind; turn the view |
 | 👉 **Point and hold** | Go closer: fly into a galaxy or star system, or get a close-up of a planet |
@@ -58,7 +58,7 @@ With a mouse, it's the same idea: **press and hold** = gather, **release** = cre
 1. You land in the Playground. One hint: **"Pinch and hold"**. Stardust swirls into your fingers.
 2. You let go, and a star is born with a soft chime. Hint: **"Now pinch quickly near it and throw"**.
 3. A planet settles into orbit around your star. You've made a solar system in under a minute.
-4. Then the app suggests: try two fists (black hole), or visit the real Solar System.
+4. Then the app suggests: try a peace sign (black hole), or visit the real Solar System.
 
 ## What "perfect" means
 - A first-timer makes a star with an orbiting planet in **under 60 seconds** without reading anything.

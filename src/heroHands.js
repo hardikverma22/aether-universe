@@ -1,5 +1,5 @@
 // Small animated hand skeletons for the home screen, drawn in the same dot-and-bone style the app uses
-// to show your tracked hand. Each one loops a gesture: hold a pinch -> star, quick pinch -> planet, two fists -> black hole.
+// to show your tracked hand. Each one loops a gesture: hold a pinch -> star, quick pinch -> planet, peace sign -> black hole.
 const BONES = [[0, 1], [1, 2], [2, 3], [3, 4], [0, 5], [5, 6], [6, 7], [7, 8], [5, 9], [9, 10], [10, 11], [11, 12],
   [9, 13], [13, 14], [14, 15], [15, 16], [13, 17], [17, 18], [18, 19], [19, 20], [0, 17]];
 const P = (s) => s.trim().split(/\s+/).map((pt) => pt.split(',').map(Number));
@@ -8,6 +8,8 @@ const OPEN = P(`50,92 36,84 26,72 20,60 16,50 38,58 36,40 35,29 34,19 50,56 50,3
 const PINCH = P(`50,92 38,84 30,72 27,59 29,47 38,58 33,44 29,40 30,46 50,56 50,36 50,24 50,13 61,58 63,40 64,29 65,20 71,63 75,49 77,40 79,32`);
 const FIST = P(`50,92 38,84 32,72 38,64 46,64 38,58 38,46 42,52 42,60 50,56 50,44 53,51 52,59 61,58 61,46 62,53 60,60 71,63 71,52 71,58 69,63`);
 
+// ✌️ index and middle up, ring and pinky curled, thumb tucked
+const VICTORY = OPEN.map((p, i) => ([1, 2, 3, 4, 13, 14, 15, 16, 17, 18, 19, 20].includes(i) ? FIST[i] : p)).map((p, i) => (i === 8 ? [28, 21] : i === 7 ? [31, 31] : i === 12 ? [56, 14] : i === 11 ? [54, 25] : p));
 const NS = 'http://www.w3.org/2000/svg';
 const el = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent?.appendChild(e); return e; };
 const mix = (a, b, t) => a.map((p, i) => [p[0] + (b[i][0] - p[0]) * t, p[1] + (b[i][1] - p[1]) * t]);
@@ -52,15 +54,14 @@ const GESTURES = {
       orbit.style.opacity = fly < 0 ? 0 : 0.6 * (1 - ease((c - 1.7) / 0.5));
     };
   },
-  // two fists come together: a dark disc with a bright rim opens between them
+  // hold a peace sign: a dark disc with a bright rim opens above the hand
   hole(svg) {
-    const L = makeHand(svg, 'translate(-12 20) scale(.7)'), R = makeHand(svg, 'translate(112 20) scale(-.7 .7)');
-    const ring = el('circle', { class: 'ring', cx: 50, cy: 62 }, svg), disc = el('circle', { class: 'disc', cx: 50, cy: 62 }, svg);
+    const hand = makeHand(svg, 'translate(4 10) scale(.88)');
+    const ring = el('circle', { class: 'ring', cx: 50, cy: 16 }, svg), disc = el('circle', { class: 'disc', cx: 50, cy: 16 }, svg);
     return (t) => { // 3 s loop
-      const c = t % 3, fist = ease(c / 0.3), near = ease((c - 0.3) / 0.6) * (1 - ease((c - 2.4) / 0.5));
-      const f = mix(OPEN, FIST, fist), dx = near * 10;
-      L(f.map(([x, y]) => [x + dx / 0.7, y])); R(f.map(([x, y]) => [x + dx / 0.7, y]));
-      const h = ease((c - 0.8) / 0.5) * (1 - ease((c - 2.4) / 0.5)), r = h * 8;
+      const c = t % 3, v = ease(c / 0.35) * (1 - ease((c - 2.4) / 0.4));
+      hand(mix(OPEN, VICTORY, v));
+      const h = ease((c - 0.8) / 0.5) * (1 - ease((c - 2.4) / 0.5)), r = h * 9;
       ring.setAttribute('r', r + 1.6); disc.setAttribute('r', r); ring.style.opacity = h;
     };
   },

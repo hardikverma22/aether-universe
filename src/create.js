@@ -131,7 +131,7 @@ export function makeCreator({ scene, camera, bodies, nebula, hands, toWorld, toS
   }
 
   // ---- hands
-  let fistsT = 0, holeCooldown = 0; const wasPinch = [false, false];
+  let holeCooldown = 0; const wasPinch = [false, false], vT = [0, 0];
   function update(dt, now) {
     api.labels.length = 0; api.gatherHeld = 0; line.visible = false;
     if (!api.enabled) { glows.forEach((g) => (g.visible = false)); sfx.gathering(false); return; }
@@ -147,11 +147,14 @@ export function makeCreator({ scene, camera, bodies, nebula, hands, toWorld, toS
         if (!on && wasPinch[k]) end(k, h.pos, h.vel);
         wasPinch[k] = on;
       });
-      const [a, b] = hands.hands;
-      const fists = a.active > 0.7 && b.active > 0.7 && a.lat.fist.on && b.lat.fist.on && toScreen(a.pos).x !== null && a.pos.distanceTo(b.pos) < 2.6;
-      fistsT = fists ? fistsT + dt : 0; holeCooldown -= dt;
-      if (fists) { const m = toScreen(a.pos.clone().add(b.pos).multiplyScalar(0.5)); api.labels.push({ x: m.x, y: m.y - 40, text: fistsT > 0.15 ? '◉ black hole…' : '' }); }
-      if (fistsT > 0.6 && holeCooldown <= 0) { makeHole(a.pos.clone().add(b.pos).multiplyScalar(0.5)); fistsT = 0; holeCooldown = 1.5; }
+      // ✌️ hold a peace sign for about half a second: a black hole forms where your hand is
+      holeCooldown -= dt;
+      hands.hands.forEach((h, k) => {
+        const v = h.active > 0.7 && h.victory > 0.5 && !st[k].mode;
+        vT[k] = v ? vT[k] + dt : 0;
+        if (v) { const m = toScreen(h.pos); api.labels.push({ x: m.x, y: m.y - 50, text: vT[k] > 0.12 ? '◉ black hole…' : '' }); }
+        if (vT[k] > 0.5 && holeCooldown <= 0) { makeHole(h.pos.clone()); vT[k] = 0; holeCooldown = 1.5; }
+      });
     }
     if (st[2].mode && mouse.pos) hold(2, mouse.pos, mouse.vel, dt);
     if (!st.some((s) => s.mode === 'gather')) sfx.gathering(false);
