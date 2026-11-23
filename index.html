@@ -16,22 +16,19 @@
 
   <section id="intro">
     <div class="hero">
-      <div class="corner tl">
-        <p class="lede">Make stars, planets and black holes with your bare hands.</p>
-        <div class="cta">
-          <button id="btnCam" class="primary">Start with my hands</button>
-          <button id="btnMouse" class="quiet">or use the mouse</button>
-        </div>
+      <h1 id="title"><span class="ln"><span>Make stars</span></span><span class="ln"><span>with your hands.</span></span></h1>
+      <p class="lede">Pull planets out of stardust, throw them into orbit and feed a black hole. Right in your browser, with just your webcam.</p>
+      <div class="cta">
+        <button id="btnCam" class="primary">Start with my hands</button>
+        <button id="btnMouse" class="quiet">Use the mouse <span aria-hidden="true">→</span></button>
       </div>
-      <dl class="corner tr moves">
-        <div><dt>Pinch and hold</dt><dd>a star</dd></div>
-        <div><dt>Pinch and let go</dt><dd>a planet</dd></div>
-        <div><dt>Two fists together</dt><dd>a black hole</dd></div>
-      </dl>
-      <p class="corner bl fine">Hand tracking runs on your device. Your camera image never leaves this page.</p>
-      <p class="corner br places">Create in an empty playground, in our real Solar System, or in any of 110 galaxies.</p>
-      <h1 id="title" aria-label="Aether: make a universe with your hands"><span class="ch">A</span><span class="ch">e</span><span class="ch">t</span><span class="ch">h</span><span class="ch">e</span><span class="ch">r</span></h1>
+      <ul id="gestures" aria-label="Gestures">
+        <li data-g="star"><svg viewBox="0 0 100 100" aria-hidden="true"></svg><b>Pinch and hold</b><span>a star</span></li>
+        <li data-g="planet"><svg viewBox="0 0 100 100" aria-hidden="true"></svg><b>Quick pinch</b><span>a planet</span></li>
+        <li data-g="hole"><svg viewBox="0 0 100 100" aria-hidden="true"></svg><b>Two fists</b><span>a black hole</span></li>
+      </ul>
     </div>
+    <p class="fine">Hand tracking runs on your device. Your camera image never leaves this page.</p>
   </section>
 
   <div id="hud" hidden>

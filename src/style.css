@@ -73,43 +73,49 @@ button:focus-visible { outline: 2px solid #9fb4ff; outline-offset: 3px; }
 #coach { bottom: max(70px, calc(env(safe-area-inset-bottom) + 60px)); }
 @media (max-width: 760px) { #places button { padding: .45em .7em; font-size: 12px; } }
 
-/* ---- home: the name runs edge to edge across the foot of the screen; everything else sits in the corners, the live scene fills the middle ---- */
-:root { --display: "Unbounded", var(--sans); --text: "Onest", var(--sans); --paper: #f3f1ea; --fire: #fe7141; --m: clamp(16px, 1.7vw, 28px); }
-#intro { position: fixed; inset: 0; z-index: 4; pointer-events: auto; font-family: var(--text); color: var(--paper); }
-#intro .hero { position: absolute; inset: 0; padding: max(var(--m), env(safe-area-inset-top)) var(--m) max(var(--m), env(safe-area-inset-bottom)); }
-#intro .corner { position: absolute; margin: 0; }
-#intro .tl { top: var(--m); left: var(--m); max-width: 30rem; }
-#intro .tr { top: var(--m); right: var(--m); }
-#intro .bl, #intro .br { bottom: calc(var(--m) + var(--name-h, 18vw) + 14px); font-size: 15px; line-height: 1.45; max-width: 23rem; color: #cfccd8; text-wrap: balance; }
-#intro .bl { left: var(--m); }
-#intro .br { right: var(--m); text-align: right; }
-#intro .lede { font-size: clamp(1.3rem, 1rem + 1vw, 2.1rem); line-height: 1.18; font-weight: 500; letter-spacing: -0.012em; margin: 0 0 28px; text-wrap: balance; }
-#intro .cta { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
-#intro .cta button { backdrop-filter: none; -webkit-backdrop-filter: none; border: 0; font-family: var(--text); font-weight: 500; cursor: pointer; transition: transform .18s cubic-bezier(.2,.8,.2,1), background-color .2s, color .2s; }
-#intro .cta .primary { background: var(--fire); color: #0b0a08; border-radius: 0; font-size: 17px; padding: 20px 30px; }
-#intro .cta .primary:hover { background: var(--paper); }
-#intro .cta .primary:active { transform: scale(.97); }
-#intro .cta .quiet { background: none; color: var(--paper); padding: 8px 0; font-size: 16px; border-radius: 0; text-decoration: underline; text-decoration-thickness: 1.5px; text-underline-offset: 6px; text-decoration-color: rgba(243,241,234,.4); transition: text-decoration-color .2s, text-underline-offset .2s; }
-#intro .cta .quiet:hover { text-decoration-color: var(--fire); text-underline-offset: 9px; }
+/* ---- home: a big statement on the left, the live solar system framed on the right ---- */
+:root { --display: "Unbounded", var(--sans); --text: "Onest", var(--sans); --paper: #f2f5fb; --soft: #b9c3d8; --ice: #cfe5ff; --m: clamp(18px, 2vw, 32px); }
+#intro { position: fixed; inset: 0; z-index: 4; pointer-events: auto; font-family: var(--text); color: var(--paper);
+  background: linear-gradient(90deg, rgba(3,4,12,.82) 0%, rgba(3,4,12,.55) 38%, rgba(3,4,12,0) 62%); } /* neutral scrim behind the text only */
+#intro .hero { position: absolute; left: calc(var(--m) * 2); top: 50%; transform: translateY(-50%); }
+#title { font-family: var(--display); font-weight: 800; font-size: clamp(44px, 5vw, 92px); line-height: 1.02; letter-spacing: -0.04em; margin: 0; color: var(--paper); }
+#title .ln { display: block; overflow: hidden; padding-bottom: .06em; white-space: nowrap; }
+#title .ln > span { display: inline-block; }
+#intro .lede { font-size: clamp(17px, 1.05rem + .3vw, 21px); line-height: 1.5; color: var(--soft); max-width: 34ch; margin: 28px 0 36px; }
+#intro .cta { display: flex; align-items: center; gap: 28px; flex-wrap: wrap; }
+#intro .cta button { backdrop-filter: none; -webkit-backdrop-filter: none; border: 0; border-radius: 999px; font-family: var(--text); font-weight: 500; cursor: pointer;
+  transition: transform .18s cubic-bezier(.2,.8,.2,1), background-color .2s, color .2s; }
+#intro .cta .primary { background: var(--ice); color: #06101f; font-size: 17px; padding: 19px 34px; }
+#intro .cta .primary:hover { background: #fff; }
+#intro .cta button:active { transform: scale(.97); }
+#intro .cta .quiet { background: none; color: var(--paper); font-size: 17px; padding: 10px 0; }
+#intro .cta .quiet span { display: inline-block; transition: transform .2s; }
+#intro .cta .quiet:hover span { transform: translateX(5px); }
 #intro .cta button:disabled { opacity: .55; cursor: progress; }
-#intro .cta button:focus-visible { outline: 2px solid var(--paper); outline-offset: 4px; }
-#intro .moves { margin: 0; display: grid; gap: 10px; text-align: right; font-size: 16px; line-height: 1.3; }
-#intro .moves div { display: flex; justify-content: flex-end; gap: 10px; }
-#intro .moves dt { color: #cfccd8; }
-#intro .moves dd { margin: 0; font-weight: 500; color: var(--paper); min-width: 6.4em; text-align: left; }
-#intro .moves dd::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--fire); margin-right: 9px; vertical-align: .12em; }
-#title { position: absolute; left: var(--m); right: var(--m); bottom: var(--m); margin: 0; font-family: var(--display); font-weight: 800; text-transform: uppercase;
-  font-size: var(--name-size, 18.5vw); line-height: .74; letter-spacing: -0.03em; color: var(--paper); white-space: nowrap; overflow: hidden; padding-top: .06em; }
-#title .ch { display: inline-block; will-change: transform; }
+#intro .cta button:focus-visible { outline: 2px solid var(--ice); outline-offset: 4px; }
+#gestures { list-style: none; padding: 0; margin: 56px 0 0; display: flex; gap: 36px; }
+#gestures li { display: grid; grid-template-columns: 76px auto; grid-template-rows: auto auto; column-gap: 14px; align-items: center; }
+#gestures svg { grid-row: span 2; width: 76px; height: 76px; overflow: visible; }
+#gestures b { font-weight: 500; font-size: 16px; align-self: end; }
+#gestures span { font-size: 15px; color: var(--soft); align-self: start; }
+#gestures .bone { stroke: rgba(207,229,255,.55); stroke-width: 2.6; stroke-linecap: round; }
+#gestures .joint { fill: var(--paper); }
+#gestures .core { fill: #fff; } #gestures .glow { fill: rgba(190,220,255,.28); }
+#gestures .planet { fill: #8fc4ff; } #gestures .orbit { fill: none; stroke: rgba(207,229,255,.7); stroke-width: 1.4; }
+#gestures .disc { fill: #000; } #gestures .ring { fill: none; stroke: #ffd9a8; stroke-width: 2.4; }
+#intro .fine { position: absolute; left: calc(var(--m) * 2); bottom: var(--m); margin: 0; font-size: 14px; color: #8e98ae; }
+@media (max-width: 900px) and (min-width: 761px) { #gestures { flex-direction: column; gap: 14px; } }
 @media (max-width: 760px) {
-  #intro .tl { top: calc(var(--m) + var(--name-h, 18vw) + 26px); right: var(--m); max-width: none; }
-  #title { top: max(var(--m), env(safe-area-inset-top)); bottom: auto; }
-  #intro .lede { font-size: 1.3rem; }
-  #intro .cta { flex-direction: column; align-items: stretch; gap: 10px; }
-  #intro .cta .primary { padding: 18px; }
-  #intro .tr { top: auto; bottom: calc(var(--m) + 64px); right: var(--m); left: var(--m); }
-  #intro .moves { font-size: 15px; }
-  #intro .br { display: none; }
-  #intro .bl { bottom: var(--m); right: var(--m); max-width: none; font-size: 13px; }
+  #intro { background: linear-gradient(180deg, rgba(3,4,12,.85) 0%, rgba(3,4,12,.5) 45%, rgba(3,4,12,.1) 70%, rgba(3,4,12,.7) 100%); }
+  #intro .hero { left: var(--m); right: var(--m); width: auto; top: max(var(--m), env(safe-area-inset-top)); transform: none; }
+  #title { font-size: 8.8vw; }
+  #intro .lede { margin: 16px 0 22px; font-size: 16px; }
+  #intro .cta { gap: 8px 20px; }
+  #intro .cta .primary { flex: 1 1 100%; padding: 17px; }
+  #gestures { position: fixed; left: var(--m); right: var(--m); bottom: calc(var(--m) + 30px); margin: 0; justify-content: space-between; gap: 8px; }
+  #gestures li { grid-template-columns: 1fr; text-align: center; justify-items: center; row-gap: 2px; }
+  #gestures svg { grid-row: auto; width: 54px; height: 54px; }
+  #gestures b { font-size: 14px; } #gestures span { font-size: 13px; }
+  #intro .fine { left: var(--m); right: var(--m); font-size: 12px; text-align: center; }
 }
-@media (prefers-reduced-motion: reduce) { #intro .cta button, #intro .cta .quiet { transition: none; } }
+@media (prefers-reduced-motion: reduce) { #intro .cta button, #intro .cta .quiet span { transition: none; } }

@@ -6,6 +6,7 @@ import {
 } from 'three/tsl';
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 import gsap from 'gsap';
+import { startHeroHands } from './heroHands.js';
 import { makeGalaxy } from './sim.js';
 import { Bodies } from './bodies.js';
 import { makeNebula } from './nebula.js';
@@ -499,27 +500,27 @@ function coachTick(dt) {
 
 // ================================================================ home (attract mode: a little solar system forms behind the title) + start
 function attract() {
-  loadPlayground(); rig.setFrom(PLAY.pos.clone().add(new THREE.Vector3(1.4, -1.3, 0)), new THREE.Vector3(0, 0.5, 1), PLAY_R + 1);
-  const sun = bodies.add('star', new THREE.Vector3(1.4, 0, 0), new THREE.Vector3(), 1.4);
-  [[1.3, 'lava'], [2.0, 'terran'], [2.9, 'gas']].forEach(([r, kind], i) => {
-    const a = i * 2.2; const p = new THREE.Vector3(1.4 + Math.cos(a) * r, 0, Math.sin(a) * r * 0.9);
+  loadPlayground();
+  const c = PLAY.pos.clone().add(new THREE.Vector3(1.4, 0, 0));
+  rig.setFrom(c, new THREE.Vector3(0, 0.42, 1), 8.6);
+  const sun = bodies.add('star', c, new THREE.Vector3(), 1.9);
+  [[1.15, 'lava', 0.4], [1.75, 'terran', 2.6], [2.45, 'ice', 4.4], [3.3, 'gas', 1.5]].forEach(([r, kind, a]) => {
+    const p = c.clone().add(new THREE.Vector3(Math.cos(a) * r, 0, Math.sin(a) * r));
     const t = new THREE.Vector3(-Math.sin(a), 0, Math.cos(a)).multiplyScalar(Math.sqrt(sun.mass / r)); bodies.add('planet', p, t, 0.01, kind);
   });
 }
-attract();
-// the name is fitted to run exactly from margin to margin; its height positions the corner texts above it
-function fitName() {
-  const t = $('title'); if (!t || $('intro').hidden) return;
-  t.style.setProperty('--name-size', '100px');
-  const w = t.clientWidth, sw = [...t.children].reduce((a, c) => a + c.getBoundingClientRect().width, 0) || 1;
-  const size = Math.max(40, Math.floor(100 * w / sw * 0.995));
-  document.documentElement.style.setProperty('--name-size', size + 'px'); t.style.removeProperty('--name-size');
-  document.documentElement.style.setProperty('--name-h', Math.round(size * 0.74) + 'px');
+// on the home screen the scene is framed to the right of the headline (below it on a phone); eased away on start
+const homeShift = { k: 1 };
+function applyHomeShift() {
+  if (homeShift.k <= 0.001) { if (camera.view?.enabled) camera.clearViewOffset(); return; }
+  const w = innerWidth, h = innerHeight, phone = w < 760;
+  camera.setViewOffset(w, h, phone ? 0 : -w * 0.17 * homeShift.k, phone ? -h * 0.14 * homeShift.k : 0, w, h);
 }
-fitName(); document.fonts?.ready.then(fitName); addEventListener('resize', fitName);
+attract();
+startHeroHands($('gestures'));
 if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
-  gsap.from('#title .ch', { yPercent: 105, duration: 1.3, ease: 'expo.out', stagger: 0.06, delay: 0.25 });
-  gsap.from('#intro .lede, #intro .cta, #intro .moves > div, #intro .bl, #intro .br', { y: 22, opacity: 0, duration: 1, ease: 'power3.out', stagger: 0.08, delay: 0.7 });
+  gsap.from('#title .ln > span', { yPercent: 110, duration: 1.2, ease: 'expo.out', stagger: 0.09, delay: 0.2 });
+  gsap.from('#intro .lede, #intro .cta, #gestures li, #intro .fine', { y: 20, opacity: 0, duration: 1, ease: 'power3.out', stagger: 0.07, delay: 0.55 });
 }
 const status = $('status');
 async function start(m) {
@@ -528,7 +529,7 @@ async function start(m) {
   try { if (m === 'camera') { status.textContent = 'Waking the stars…'; await hands.initCamera(); updateCover(); } else hands.initMouse(glc); }
   catch (e) { console.warn(e); hands.initMouse(glc); banner('Camera unavailable — using the mouse. Allow camera access, then click 🖱 Mouse to switch.'); }
   gsap.to('#intro', { opacity: 0, duration: 0.9, ease: 'power2.inOut', onComplete: () => ($('intro').hidden = true) });
-  bodies.clear(); renderer.compute(galaxy.init);
+  bodies.clear(); renderer.compute(galaxy.init); gsap.to(homeShift, { k: 0, duration: 1.6, ease: 'power2.inOut' }); gsap.to(rig.goal, { radius: PLAY_R, phi: 1.068, duration: 1.6, ease: 'power2.inOut' });
   gsap.to(rig.target, { x: PLAY.pos.x, y: PLAY.pos.y, z: PLAY.pos.z, duration: 1.6, ease: 'power2.inOut' });
   started = true; $('hud').hidden = false; status.textContent = ''; updateInputButton(); refreshHUD();
   gsap.from('#panel, #tools, #places', { y: 12, opacity: 0, duration: 0.9, delay: 0.4 });
@@ -564,6 +565,7 @@ renderer.setAnimationLoop((now) => {
   handNavigation(dt);
   updateFocus(dt);
   if (!started) rig.orbit(dt * 0.03, 0);   // slow drift on the home screen
+  applyHomeShift();
   rig.update(dt);
   const u = galaxy.u; u.time.value = now / 1000; u.dt.value = dt; camera.getWorldDirection(u.viewDir.value);
   const live = started && (mode === 'galaxy' || mode === 'playground') && !focus;
