@@ -20,5 +20,17 @@ export function startHandSim(hands) {
     state.forEach((h, i) => { if (h) { landmarks.push(lm(h.pose, h.x, h.y)); handedness.push(i === 0 ? 'Right' : 'Left'); } });
     hands.latest = { landmarks, handedness }; hands.busy = true; requestAnimationFrame(tick);
   })();
-  window.__sim = { set(i, pose, x, y) { state[i] = pose ? { pose, x, y } : null; }, clear() { state[0] = state[1] = null; }, TIP, PINCHPT };
+  const sleep = (t) => new Promise((r) => setTimeout(r, t));
+  // aim so the fingertip (point) or the pinch midpoint lands on screen pixel (px, py), correcting for the camera mapping
+  async function aim(i, pose, px, py, tries = 6) {
+    let x = px / innerWidth - (pose === 'pinch' ? PINCHPT.x : TIP.x), y = py / innerHeight - (pose === 'pinch' ? PINCHPT.y : TIP.y);
+    for (let k = 0; k < tries; k++) {
+      state[i] = { pose, x, y }; await sleep(160);
+      const s = hands.hands[i].screen; if (!s) continue;
+      const tx = pose === 'pinch' ? (s[4].x + s[8].x) / 2 : s[8].x, ty = pose === 'pinch' ? (s[4].y + s[8].y) / 2 : s[8].y;
+      x += px / innerWidth - tx; y += py / innerHeight - ty;
+    }
+    state[i] = { pose, x, y };
+  }
+  window.__sim = { set(i, pose, x, y) { state[i] = pose ? { pose, x, y } : null; }, clear() { state[0] = state[1] = null; }, aim, TIP, PINCHPT };
 }

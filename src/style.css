@@ -225,3 +225,5 @@ button:focus-visible { outline: 2px solid #9fb4ff; outline-offset: 3px; }
 }
 
 body[data-mode="playground"] #coach { left: 50%; right: auto; transform: translateX(-50%); }
+
+.handpress { transform: scale(.94) !important; filter: brightness(1.4); transition: transform .12s, filter .12s; }

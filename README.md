@@ -24,7 +24,7 @@ See [docs/PRODUCT.md](docs/PRODUCT.md) for what it is and why.
 | 🤏 pinch a world | grab it, move it, throw it |
 | 🤏🤏 both hands on one star, pull apart | it swells… then **supernova** |
 | ✊✊ two fists together | **black hole** |
-| 👉 point & hold | go closer (galaxy → system → planet close-up) |
+| 👉 point & hold | go closer (galaxy → system → planet close-up); on a button, presses it (Customise, legend, clock, tabs) |
 | ✋✋ both palms still | go back |
 
 ## Mouse
