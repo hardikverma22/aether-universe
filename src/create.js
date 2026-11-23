@@ -61,19 +61,20 @@ export function makeCreator({ scene, camera, bodies, nebula, hands, toWorld, toS
   }
   const throwVel = (v) => v.clone().multiplyScalar(0.42).clampLength(0, 4.5);
 
+  const panOf = (p) => { const s = toScreen(p); return s.x != null ? (s.x / innerWidth) * 2 - 1 : 0; };
   // ---- making things
   // studio options (Playground): what a pinch/click makes, star colour, planet type
   const opt = { make: 'auto', temp: 0, kind: null };
-  function makePlanet(pos, vel) { const b = bodies.add('planet', pos, assist(pos, vel), 0.01, opt.kind || undefined); sfx.chime(0.2); events?.('planet', b); return b; }
+  function makePlanet(pos, vel) { const b = bodies.add('planet', pos, assist(pos, vel), 0.01, opt.kind || undefined); b.note = sfx.noteFor(b.kind); sfx.planetBorn(b.note, panOf(pos)); events?.('planet', b); return b; }
   function makeStar(pos, vel, held) {
     const mass = THREE.MathUtils.clamp(0.35 + (held - PLANET_HOLD) * 1.1, 0.35, 3.2);
     nebula.emitBurst(pos, new THREE.Color(1, 0.8, 0.55), 900, 0.45);
-    const b = bodies.add('star', pos, assist(pos, vel), mass, undefined, opt.temp ? { temp: opt.temp } : {}); sfx.chime(0.9); events?.('star', b); return b;
+    const b = bodies.add('star', pos, assist(pos, vel), mass, undefined, opt.temp ? { temp: opt.temp } : {}); sfx.starBorn(mass / 3.2, panOf(pos)); events?.('star', b); return b;
   }
-  function makeHole(pos) { nebula.emitBurst(pos, new THREE.Color(0.32, 0.18, 0.75), 450, 1.2); const b = bodies.add('hole', pos, new THREE.Vector3(), 2.2); sfx.boom(); events?.('hole', b); return b; }
+  function makeHole(pos) { nebula.emitBurst(pos, new THREE.Color(0.32, 0.18, 0.75), 450, 1.2); const b = bodies.add('hole', pos, new THREE.Vector3(), 2.2); sfx.holeBorn(); events?.('hole', b); return b; }
   function supernova(star) {
     const p = star.pos.clone(), c = star.color.clone(), m = star.mass; bodies.remove(star);
-    nebula.emitBurst(p, c, 5000, 1.8); sfx.boom(); events?.('supernova', { pos: p, mass: m });
+    nebula.emitBurst(p, c, 5000, 1.8); sfx.boom(); sfx.shimmer(); events?.('supernova', { pos: p, mass: m });
     if (m > 2.4) setTimeout(() => bodies.add('hole', p, new THREE.Vector3(), m * 0.5), 450);
   }
   // grab only when the pinch is on the world itself (its visible size plus a small margin), so a pinch *near* a

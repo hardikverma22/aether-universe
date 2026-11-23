@@ -10,7 +10,7 @@ export function makeNebula({ count = 40000 } = {}) {
   const vel = instancedArray(count, 'vec4'); // xyz, w = size seed
   const col = instancedArray(count, 'vec4'); // rgb, a = kind (0 stroke, 1 burst)
   const u = {
-    dt: uniform(1 / 60), time: uniform(0), start: uniform(0), n: uniform(0), mode: uniform(0),
+    dt: uniform(1 / 60), time: uniform(0), start: uniform(0), n: uniform(0), mode: uniform(0), wipe: uniform(0),
     p0: uniform(new THREE.Vector3()), p1: uniform(new THREE.Vector3()), color: uniform(new THREE.Color()), speed: uniform(0.3),
   };
   let cursor = 0;
@@ -32,6 +32,7 @@ export function makeNebula({ count = 40000 } = {}) {
       const shade = mix(vec3(u.color), vec3(u.color).zxy, tint.mul(0.35)).mul(tint.mul(0.5).add(0.6));
       C.assign(vec4(shade, u.mode));
     }, () => {
+      If_(u.wipe.greaterThan(0.5), () => { P.assign(vec4(P.xyz, 0)); });   // reset: every puff ends now
       If_(P.w.greaterThan(0), () => {
         const curl = mx_noise_vec3(P.xyz.mul(1.6).add(vec3(0, u.time.mul(0.05), 0))).mul(0.05);
         const v = V.xyz.mul(exp(u.dt.mul(-0.9))).add(curl.mul(u.dt));
@@ -54,7 +55,7 @@ export function makeNebula({ count = 40000 } = {}) {
   mat.scaleNode = select(PA.w.greaterThan(0.0), VA.w.mul(0.3).add(0.1).mul(life.oneMinus().mul(1.8).add(0.7)), float(0));
   const sprite = new THREE.Sprite(mat); sprite.count = count; sprite.frustumCulled = false;
 
-  let pending = null; // one emission per frame (merged), applied in update()
+  let pending = null, wipeNext = false; // one emission per frame (merged), applied in update()
   return {
     sprite, u,
     // strokes arriving in the same frame are merged into one segment; density scales with length (no dashes)
@@ -63,9 +64,11 @@ export function makeNebula({ count = 40000 } = {}) {
       else pending = { mode: 0, a: a.clone(), b: b.clone(), color, len: a.distanceTo(b), speed: 0.3 };
       pending.n = Math.round(Math.min(900, Math.max(12, pending.len * 320)));
     },
+    /** clear all gas on the next update */
+    reset() { wipeNext = true; pending = null; },
     emitBurst(p, color, n = 3000, speed = 1.4) { pending = { mode: 1, a: p.clone(), b: p.clone(), color, n, speed }; },
     update(renderer, dt, t) {
-      u.dt.value = dt; u.time.value = t;
+      u.dt.value = dt; u.time.value = t; u.wipe.value = wipeNext ? 1 : 0; wipeNext = false;
       if (pending) {
         u.mode.value = pending.mode; u.p0.value.copy(pending.a); u.p1.value.copy(pending.b); u.color.value.copy(pending.color);
         u.n.value = Math.min(pending.n, count); u.start.value = cursor; u.speed.value = pending.speed;

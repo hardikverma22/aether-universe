@@ -16,6 +16,8 @@ export function makeGalaxy({ count, bodies }) {
       active: uniform(0), pinch: uniform(0), fist: uniform(0), open: uniform(0), burst: uniform(0), point: uniform(0) })),
     // all 42 hand landmarks in world space (z = 99 when a hand is absent): stars flow around your fingers
     joints: uniformArray(Array.from({ length: 42 }, () => new THREE.Vector3(0, 0, 99)), 'vec3'),
+    // how many joints and bodies are real this frame: loops stop there instead of walking every empty slot
+    nJoints: uniform(0, 'int'), nBodies: uniform(0, 'int'),
     // two-hand Big Bang: implode toward a point, then explode
     bangPos: uniform(new THREE.Vector3()), implode: uniform(0), explode: uniform(0),
     // per-galaxy identity: where it sits in the universe, how it's oriented, its shape and palette
@@ -91,7 +93,7 @@ export function makeGalaxy({ count, bodies }) {
       grabAll.assign(max(grabAll, h.point.mul(h.active).mul(exp(r2.div(1.6).negate()))));
     }
     // whole-hand colliders: every joint gently pushes stars aside so they wrap around the hand
-    Loop({ start: int(0), end: int(42) }, ({ i }) => {
+    Loop({ start: int(0), end: u.nJoints, type: 'int', condition: '<' }, ({ i }) => {
       const dj = p.sub(u.joints.element(i)); const r2j = dot(dj, dj);
       force.addAssign(dj.div(r2j.add(0.004)).mul(exp(r2j.div(0.035).negate())).mul(0.9));
     });
@@ -103,7 +105,7 @@ export function makeGalaxy({ count, bodies }) {
     grabAll.assign(max(grabAll, u.implode));
     // gravity from the stars, planets and black holes you created; black holes swallow what crosses the horizon
     const captured = float(0).toVar();
-    if (bodies) Loop({ start: int(0), end: int(bodies.array.length) }, ({ i }) => {
+    if (bodies) Loop({ start: int(0), end: u.nBodies, type: 'int', condition: '<' }, ({ i }) => {
       const b = bodies.element(i); const m = b.w; const am = abs(m);
       const dbd = b.xyz.sub(p); const r2b = dot(dbd, dbd).add(0.02); const rbd = sqrt(r2b);
       const k = select(m.lessThan(0), float(2.4), u.starPull); // black holes pull hard; stars swirl stardust around them
