@@ -76,9 +76,11 @@ export function makeCreator({ scene, camera, bodies, nebula, hands, toWorld, toS
     nebula.emitBurst(p, c, 5000, 1.8); sfx.boom(); events?.('supernova', { pos: p, mass: m });
     if (m > 2.4) setTimeout(() => bodies.add('hole', p, new THREE.Vector3(), m * 0.5), 450);
   }
-  const bodyNearScreen = (sx, sy, px = 64) => {
+  // grab only when the pinch is on the world itself (its visible size plus a small margin), so a pinch *near* a
+  // star still makes a planet; a wide fixed radius here used to turn "pinch near your star" into grabbing it
+  const bodyNearScreen = (sx, sy, px = 20) => {
     let best = null, bd = Infinity;
-    for (const b of bodies.list) { const s = toScreen(b.pos); if (!s.front) continue; const rpx = Math.max(px, (b.radius / camera.position.distanceTo(b.pos)) * innerHeight * 1.3); const d = Math.hypot(s.x - sx, s.y - sy); if (d < rpx && d < bd) { bd = d; best = b; } }
+    for (const b of bodies.list) { const s = toScreen(b.pos); if (!s.front) continue; const rpx = Math.max(px, (b.radius / camera.position.distanceTo(b.pos)) * innerHeight * 1.25 + 12); const d = Math.hypot(s.x - sx, s.y - sy); if (d < rpx && d < bd) { bd = d; best = b; } }
     return best;
   };
 
