@@ -805,6 +805,7 @@ renderer.setAnimationLoop((now) => {
 });
 
 if (q.has('lite')) setLite(true);
+if (q.has('handsim')) import('./handsim.js').then((m) => { window.__startHandSim = () => m.startHandSim(hands); });
 if (q.has('debug')) {
   const el = document.createElement('div'); el.id = 'debug'; el.style.cssText = 'position:fixed;top:8px;left:50%;transform:translateX(-50%);font:12px ui-monospace,monospace;color:#9fb4ff;z-index:9';
   document.body.append(el); let frames = 0, t = performance.now(), lastR = last;
